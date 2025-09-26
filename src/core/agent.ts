@@ -1,0 +1,205 @@
+import { z } from 'zod';
+import type {
+  Step,
+  Flow,
+  AgentConfig,
+  State,
+  Response,
+} from '../models/schemas';
+import type { LLMBase } from '../llms';
+import type { Tool } from '../tools';
+import { Session } from './session';
+
+// Agent configuration
+export interface AgentOptions {
+  name: string;
+  steps: Step[];
+  startStepId: string;
+  persona?: string;
+  systemMessage?: string;
+  tools?: Tool[];
+  flows?: Flow[];
+  showStepsDesc?: boolean;
+  maxErrors?: number;
+  maxIter?: number;
+  llm: LLMBase;
+  embeddingModel?: LLMBase;
+}
+
+// Main Agent class
+export class Agent {
+  public readonly name: string;
+  private steps: Map<string, Step>;
+  private startStepId: string;
+  private persona?: string;
+  private systemMessage?: string;
+  private tools: Map<string, Tool>;
+  private flows?: Flow[];
+  private showStepsDesc: boolean;
+  private maxErrors: number;
+  private maxIter: number;
+  private llm: LLMBase;
+  private embeddingModel: LLMBase;
+
+  constructor(options: AgentOptions) {
+    this.name = options.name;
+    this.steps = new Map(options.steps.map(step => [step.step_id, step]));
+    this.startStepId = options.startStepId;
+    this.persona = options.persona;
+    this.systemMessage = options.systemMessage;
+    this.tools = new Map((options.tools || []).map(tool => [tool.name, tool]));
+    this.flows = options.flows;
+    this.showStepsDesc = options.showStepsDesc || false;
+    this.maxErrors = options.maxErrors || 3;
+    this.maxIter = options.maxIter || 5;
+    this.llm = options.llm;
+    this.embeddingModel = options.embeddingModel || options.llm;
+
+    this.validateConfiguration();
+  }
+
+  // Create agent from configuration object
+  static fromConfig(config: AgentConfig, llm: LLMBase, tools: Tool[] = []): Agent {
+    return new Agent({
+      name: config.name,
+      steps: config.steps,
+      startStepId: config.start_step_id,
+      persona: config.persona,
+      systemMessage: config.system_message,
+      tools,
+      flows: config.flows,
+      showStepsDesc: config.show_steps_desc,
+      maxErrors: config.max_errors,
+      maxIter: config.max_iter,
+      llm,
+      embeddingModel: config.embedding_model as LLMBase,
+    });
+  }
+
+  // Validate agent configuration
+  private validateConfiguration(): void {
+    // Check start step exists
+    if (!this.steps.has(this.startStepId)) {
+      throw new Error(`Start step '${this.startStepId}' not found in steps`);
+    }
+
+    // Validate step routes
+    for (const step of this.steps.values()) {
+      for (const route of step.routes) {
+        if (!this.steps.has(route.target)) {
+          throw new Error(
+            `Step '${step.step_id}' has invalid route target '${route.target}'`
+          );
+        }
+      }
+
+      // Validate available tools
+      for (const toolName of step.available_tools) {
+        if (!this.tools.has(toolName)) {
+          throw new Error(
+            `Step '${step.step_id}' references unknown tool '${toolName}'`
+          );
+        }
+      }
+    }
+  }
+
+  // Create a new session
+  createSession(state?: State): Session {
+    return new Session({
+      name: this.name,
+      llm: this.llm,
+      embeddingModel: this.embeddingModel,
+      steps: this.steps,
+      startStepId: this.startStepId,
+      tools: this.tools,
+      systemMessage: this.systemMessage,
+      persona: this.persona,
+      flows: this.flows,
+      showStepsDesc: this.showStepsDesc,
+      maxErrors: this.maxErrors,
+      maxIter: this.maxIter,
+      state,
+    });
+  }
+
+  // Process user input and advance session
+  async next(
+    userInput?: string,
+    sessionData?: State,
+    returnTool: boolean = false,
+    returnStep: boolean = false,
+    verbose: boolean = false
+  ): Promise<Response> {
+    const session = sessionData
+      ? this.createSession(sessionData)
+      : this.createSession();
+
+    return session.next(userInput, returnTool, returnStep, verbose);
+  }
+
+  // Get agent configuration
+  getConfig(): AgentConfig {
+    return {
+      name: this.name,
+      steps: Array.from(this.steps.values()),
+      start_step_id: this.startStepId,
+      system_message: this.systemMessage,
+      persona: this.persona,
+      show_steps_desc: this.showStepsDesc,
+      max_errors: this.maxErrors,
+      max_iter: this.maxIter,
+      flows: this.flows,
+    };
+  }
+
+  // Add a tool to the agent
+  addTool(tool: Tool): void {
+    this.tools.set(tool.name, tool);
+  }
+
+  // Remove a tool from the agent
+  removeTool(toolName: string): boolean {
+    return this.tools.delete(toolName);
+  }
+
+  // Get available tools
+  getTools(): Tool[] {
+    return Array.from(this.tools.values());
+  }
+
+  // Add a step to the agent
+  addStep(step: Step): void {
+    // Validate the step
+    for (const route of step.routes) {
+      if (!this.steps.has(route.target)) {
+        throw new Error(
+          `Step '${step.step_id}' has invalid route target '${route.target}'`
+        );
+      }
+    }
+
+    for (const toolName of step.available_tools) {
+      if (!this.tools.has(toolName)) {
+        throw new Error(
+          `Step '${step.step_id}' references unknown tool '${toolName}'`
+        );
+      }
+    }
+
+    this.steps.set(step.step_id, step);
+  }
+
+  // Remove a step from the agent
+  removeStep(stepId: string): boolean {
+    if (stepId === this.startStepId) {
+      throw new Error('Cannot remove the start step');
+    }
+    return this.steps.delete(stepId);
+  }
+
+  // Get available steps
+  getSteps(): Step[] {
+    return Array.from(this.steps.values());
+  }
+}
