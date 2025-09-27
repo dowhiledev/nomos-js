@@ -32,6 +32,8 @@ export interface SessionConfig {
   maxErrors?: number;
   maxIter?: number;
   state?: State;
+  memoryAdapter?: import('../memory').MemoryAdapter;
+  summarizeEvery?: number;
 }
 
 // Session class for managing agent conversations
@@ -74,7 +76,7 @@ export class Session {
     // Initialize state machine and memory
     this.stateMachine = new StateMachine({ steps: this.steps, startStepId: this.startStepId, flows: this.flows });
     if (config.state?.current_step_id) this.stateMachine.currentStepId = config.state.current_step_id;
-    this.memory = new Memory(config.state?.history);
+    this.memory = new Memory(config.state?.history, { adapter: config.memoryAdapter, summarizeEvery: config.summarizeEvery });
   }
 
   get currentStep(): Step {
@@ -397,12 +399,15 @@ Action Types:
       this.memory.addMessage('assistant', decision.response);
     }
 
-    return {
+    const result = {
       response: decision.response || null,
       tool_output: returnTool ? toolOutput : null,
       state: this.getState(),
       decision: verbose ? decision : undefined,
-    };
+    } as Response;
+    // Persist memory if adapter is set
+    await this.memory.persist(this.sessionId);
+    return result;
   }
 
   // Create response helper

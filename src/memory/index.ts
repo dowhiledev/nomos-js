@@ -73,3 +73,43 @@ export class Memory {
   }
 }
 
+export class FsAdapter implements MemoryAdapter {
+  private dir: string;
+  constructor(dir: string = '.nomos') {
+    this.dir = dir;
+  }
+  async save(sessionId: string, items: MemoryItem[]): Promise<void> {
+    const { promises: fs } = await import('fs');
+    const { join } = await import('path');
+    await fs.mkdir(this.dir, { recursive: true });
+    const file = join(this.dir, `${sessionId}.json`);
+    await fs.writeFile(file, JSON.stringify(items, null, 2), 'utf8');
+  }
+  async load(sessionId: string): Promise<MemoryItem[]> {
+    try {
+      const { promises: fs } = await import('fs');
+      const { join } = await import('path');
+      const file = join(this.dir, `${sessionId}.json`);
+      const data = await fs.readFile(file, 'utf8');
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  }
+}
+
+export class LocalStorageAdapter implements MemoryAdapter {
+  private prefix: string;
+  constructor(prefix: string = 'nomos:') {
+    this.prefix = prefix;
+  }
+  async save(sessionId: string, items: MemoryItem[]): Promise<void> {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(this.prefix + sessionId, JSON.stringify(items));
+  }
+  async load(sessionId: string): Promise<MemoryItem[]> {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(this.prefix + sessionId);
+    return raw ? JSON.parse(raw) : [];
+  }
+}
