@@ -14,15 +14,27 @@ export function createHttpServer(agent: Agent, opts: AgentServerOptions = {}) {
 
       // CORS (simple)
       res.setHeader('Access-Control-Allow-Origin', opts.cors?.origin || '*');
-      res.setHeader('Access-Control-Allow-Headers', (opts.cors?.allowHeaders || ['Content-Type']).join(','));
-      res.setHeader('Access-Control-Allow-Methods', (opts.cors?.allowMethods || ['GET','POST','OPTIONS']).join(','));
-      if (method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        (opts.cors?.allowHeaders || ['Content-Type']).join(','),
+      );
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        (opts.cors?.allowMethods || ['GET', 'POST', 'OPTIONS']).join(','),
+      );
+      if (method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
 
       const isNext = method === 'POST' && url === `${serverCore.base}/next`;
       const isStream = method === 'POST' && url === `${serverCore.base}/stream`;
 
       if (!isNext && !isStream) {
-        res.statusCode = 404; res.end('Not Found'); return;
+        res.statusCode = 404;
+        res.end('Not Found');
+        return;
       }
 
       let body = '';
@@ -58,7 +70,7 @@ export function createHttpServer(agent: Agent, opts: AgentServerOptions = {}) {
 
 export function startHttpServer(
   agent: Agent,
-  opts: AgentServerOptions & { port?: number; host?: string; staticDir?: string } = {}
+  opts: AgentServerOptions & { port?: number; host?: string; staticDir?: string } = {},
 ) {
   const serverCore = createAgentServer(agent, opts);
   const server = http.createServer(async (req, res) => {
@@ -68,9 +80,19 @@ export function startHttpServer(
 
       // CORS (simple)
       res.setHeader('Access-Control-Allow-Origin', opts.cors?.origin || '*');
-      res.setHeader('Access-Control-Allow-Headers', (opts.cors?.allowHeaders || ['Content-Type']).join(','));
-      res.setHeader('Access-Control-Allow-Methods', (opts.cors?.allowMethods || ['GET','POST','OPTIONS']).join(','));
-      if (method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        (opts.cors?.allowHeaders || ['Content-Type']).join(','),
+      );
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        (opts.cors?.allowMethods || ['GET', 'POST', 'OPTIONS']).join(','),
+      );
+      if (method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
 
       const isNext = method === 'POST' && url === `${serverCore.base}/next`;
       const isStream = method === 'POST' && url === `${serverCore.base}/stream`;
@@ -88,7 +110,9 @@ export function startHttpServer(
         }
         res.statusCode = 200;
         res.setHeader('Content-Type', serverCore.streamCT);
-        await serverCore.handleStream(parsed, (e) => { res.write(JSON.stringify(e) + '\n'); });
+        await serverCore.handleStream(parsed, (e) => {
+          res.write(JSON.stringify(e) + '\n');
+        });
         res.end();
         return;
       }
@@ -96,19 +120,27 @@ export function startHttpServer(
       // Optional static dir serving for demos
       if (opts.staticDir) {
         const root = path.resolve(opts.staticDir);
-        let file = path.join(root, url === '/' ? 'index.html' : url);
-        if (!file.startsWith(root)) { res.statusCode = 404; return res.end('Not found'); }
+        const file = path.join(root, url === '/' ? 'index.html' : url);
+        if (!file.startsWith(root)) {
+          res.statusCode = 404;
+          return res.end('Not found');
+        }
         fs.readFile(file, (err, data) => {
-          if (err) { res.statusCode = 404; return res.end('Not found'); }
+          if (err) {
+            res.statusCode = 404;
+            return res.end('Not found');
+          }
           const ext = path.extname(file).toLowerCase();
-          const ct = ext === '.html' ? 'text/html' : ext === '.js' ? 'application/javascript' : 'text/plain';
+          const ct =
+            ext === '.html' ? 'text/html' : ext === '.js' ? 'application/javascript' : 'text/plain';
           res.setHeader('Content-Type', ct);
           res.end(data);
         });
         return;
       }
 
-      res.statusCode = 404; res.end('Not Found');
+      res.statusCode = 404;
+      res.end('Not Found');
     } catch (e: any) {
       res.statusCode = 500;
       res.setHeader('Content-Type', 'application/json');

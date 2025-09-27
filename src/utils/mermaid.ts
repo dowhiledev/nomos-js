@@ -49,4 +49,3 @@ export function agentToMermaid(steps: Step[], flows?: Flow[]): string {
 function escapeLabel(s: string): string {
   return s.replace(/"/g, '\\"');
 }
-

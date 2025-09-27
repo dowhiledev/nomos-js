@@ -22,7 +22,15 @@ export class Memory {
   private adapter?: MemoryAdapter;
   private summarizeEvery: number;
   private flowStore: Map<string, MemoryItem[]> = new Map();
-  private flowCtx: Map<string, { entry_step?: string; entry_time?: string; metadata: Record<string, any>; variables: Record<string, any> }> = new Map();
+  private flowCtx: Map<
+    string,
+    {
+      entry_step?: string;
+      entry_time?: string;
+      metadata: Record<string, any>;
+      variables: Record<string, any>;
+    }
+  > = new Map();
 
   constructor(initial?: MemoryItem[], opts?: { adapter?: MemoryAdapter; summarizeEvery?: number }) {
     if (initial && initial.length) this.items = [...initial];
@@ -73,7 +81,15 @@ export class Memory {
     return this.flowStore.get(flowId) || [];
   }
 
-  setFlowContext(flowId: string, ctx: { entry_step?: string; entry_time?: string; metadata?: Record<string, any>; variables?: Record<string, any> }) {
+  setFlowContext(
+    flowId: string,
+    ctx: {
+      entry_step?: string;
+      entry_time?: string;
+      metadata?: Record<string, any>;
+      variables?: Record<string, any>;
+    },
+  ) {
     const prev = this.flowCtx.get(flowId) || { metadata: {}, variables: {} };
     this.flowCtx.set(flowId, {
       entry_step: ctx.entry_step ?? prev.entry_step,
@@ -83,7 +99,16 @@ export class Memory {
     });
   }
 
-  getFlowContext(flowId: string): { entry_step?: string; entry_time?: string; metadata: Record<string, any>; variables: Record<string, any> } | undefined {
+  getFlowContext(
+    flowId: string,
+  ):
+    | {
+        entry_step?: string;
+        entry_time?: string;
+        metadata: Record<string, any>;
+        variables: Record<string, any>;
+      }
+    | undefined {
     return this.flowCtx.get(flowId);
   }
 
@@ -97,10 +122,12 @@ export class Memory {
 
   private summarize() {
     // naive summarization: collapse first half of messages into one summary
-    const messages = this.items.filter(i => (i as any).role) as Message[];
+    const messages = this.items.filter((i) => (i as any).role) as Message[];
     if (messages.length < 2) return;
     const keep = this.items.slice(-Math.floor(this.summarizeEvery / 2));
-    const summary = messages.slice(0, Math.floor(messages.length / 2)).map(m => `${m.role}: ${m.content}`);
+    const summary = messages
+      .slice(0, Math.floor(messages.length / 2))
+      .map((m) => `${m.role}: ${m.content}`);
     this.items = [...keep, { summary, timestamp: new Date() } as Summary];
   }
 }
@@ -113,12 +140,18 @@ export interface StateAdapter {
 
 export class FsStateAdapter implements StateAdapter {
   private dir: string;
-  constructor(dir: string = '.nomos') { this.dir = dir; }
+  constructor(dir: string = '.nomos') {
+    this.dir = dir;
+  }
   async saveState(sessionId: string, state: State): Promise<void> {
     const { promises: fs } = await import('fs');
     const { join } = await import('path');
     await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(join(this.dir, `${sessionId}.state.json`), JSON.stringify(state, null, 2), 'utf8');
+    await fs.writeFile(
+      join(this.dir, `${sessionId}.state.json`),
+      JSON.stringify(state, null, 2),
+      'utf8',
+    );
   }
   async loadState(sessionId: string): Promise<State | null> {
     try {
@@ -175,7 +208,9 @@ export class LocalStorageAdapter implements MemoryAdapter {
 
 export class LocalStorageStateAdapter implements StateAdapter {
   private prefix: string;
-  constructor(prefix: string = 'nomos:state:') { this.prefix = prefix; }
+  constructor(prefix: string = 'nomos:state:') {
+    this.prefix = prefix;
+  }
   async saveState(sessionId: string, state: State): Promise<void> {
     if (typeof localStorage === 'undefined') return;
     localStorage.setItem(this.prefix + sessionId, JSON.stringify(state));
@@ -183,6 +218,6 @@ export class LocalStorageStateAdapter implements StateAdapter {
   async loadState(sessionId: string): Promise<State | null> {
     if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem(this.prefix + sessionId);
-    return raw ? JSON.parse(raw) as State : null;
+    return raw ? (JSON.parse(raw) as State) : null;
   }
 }

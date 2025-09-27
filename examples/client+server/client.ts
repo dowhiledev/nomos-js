@@ -3,10 +3,13 @@ import readline from 'readline';
 
 type Mode = 'stream' | 'next';
 
-function parseArgs(){
-  const args = Object.fromEntries(process.argv.slice(2).map(s => {
-    const m = s.match(/^--([^=]+)=(.*)$/); return m ? [m[1], m[2]] : [s.replace(/^--/, ''), true];
-  }));
+function parseArgs() {
+  const args = Object.fromEntries(
+    process.argv.slice(2).map((s) => {
+      const m = s.match(/^--([^=]+)=(.*)$/);
+      return m ? [m[1], m[2]] : [s.replace(/^--/, ''), true];
+    }),
+  );
   return args as { mode?: Mode; input?: string } & Record<string, any>;
 }
 
@@ -14,14 +17,24 @@ async function chatStream(client: AgentClient) {
   let state: any = undefined;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('Interactive client (stream mode). Type :help for commands.');
-  const ask = () => new Promise<string>(resolve => rl.question('You: ', resolve));
+  const ask = () => new Promise<string>((resolve) => rl.question('You: ', resolve));
 
   while (true) {
     const text = (await ask()).trim();
     if (!text) continue;
-    if (text === ':exit' || text === ':quit') { rl.close(); break; }
-    if (text === ':help') { console.log('Commands: :help, :reset, :exit'); continue; }
-    if (text === ':reset') { state = undefined; console.log('(state cleared)'); continue; }
+    if (text === ':exit' || text === ':quit') {
+      rl.close();
+      break;
+    }
+    if (text === ':help') {
+      console.log('Commands: :help, :reset, :exit');
+      continue;
+    }
+    if (text === ':reset') {
+      state = undefined;
+      console.log('(state cleared)');
+      continue;
+    }
 
     const printedWhy = new Set<string>();
     const printedTool = new Set<string>();
@@ -47,7 +60,10 @@ async function chatStream(client: AgentClient) {
         }
         if (ev.action) lastAction = ev.action;
         if (typeof (ev as any).response_chunk === 'string') {
-          if (!startedAssistant) { process.stdout.write('Assistant: '); startedAssistant = true; }
+          if (!startedAssistant) {
+            process.stdout.write('Assistant: ');
+            startedAssistant = true;
+          }
           process.stdout.write((ev as any).response_chunk);
         }
       } else {
@@ -59,7 +75,9 @@ async function chatStream(client: AgentClient) {
     // After stream ends, print step transition and ensure newline if we streamed text
     if (finalState) {
       if (startedAssistant) console.log();
-      console.log(`→ step: ${finalState.current_step_id}${finalState.flow_state ? ` (flow: ${finalState.flow_state.flow_id})` : ''}`);
+      console.log(
+        `→ step: ${finalState.current_step_id}${finalState.flow_state ? ` (flow: ${finalState.flow_state.flow_id})` : ''}`,
+      );
       state = finalState;
       // If nothing was streamed, but last action is RESPOND, print the final response
       if (!startedAssistant && lastAction === 'RESPOND' && finalResponse && finalResponse.trim()) {
@@ -73,28 +91,45 @@ async function chatNext(client: AgentClient) {
   let state: any = undefined;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('Interactive client (non-stream mode). Type :help for commands.');
-  const ask = () => new Promise<string>(resolve => rl.question('You: ', resolve));
+  const ask = () => new Promise<string>((resolve) => rl.question('You: ', resolve));
 
   while (true) {
     const text = (await ask()).trim();
     if (!text) continue;
-    if (text === ':exit' || text === ':quit') { rl.close(); break; }
-    if (text === ':help') { console.log('Commands: :help, :reset, :exit'); continue; }
-    if (text === ':reset') { state = undefined; console.log('(state cleared)'); continue; }
+    if (text === ':exit' || text === ':quit') {
+      rl.close();
+      break;
+    }
+    if (text === ':help') {
+      console.log('Commands: :help, :reset, :exit');
+      continue;
+    }
+    if (text === ':reset') {
+      state = undefined;
+      console.log('(state cleared)');
+      continue;
+    }
 
     const res = await client.next(text, state, { verbose: true });
     state = res.state;
     console.log('Assistant:', res.response || '(no text)');
-    if (state?.current_step_id) console.log(`→ step: ${state.current_step_id}${state.flow_state ? ` (flow: ${state.flow_state.flow_id})` : ''}`);
+    if (state?.current_step_id)
+      console.log(
+        `→ step: ${state.current_step_id}${state.flow_state ? ` (flow: ${state.flow_state.flow_id})` : ''}`,
+      );
   }
 }
 
-async function main(){
+async function main() {
   const args = parseArgs();
   let mode: Mode = (args.mode as any) || 'stream';
   const client = new AgentClient({ baseUrl: 'http://localhost:8788/api' });
   console.log(`Mode: ${mode}`);
-  if (mode === 'next') await chatNext(client); else await chatStream(client);
+  if (mode === 'next') await chatNext(client);
+  else await chatStream(client);
 }
 
-main().catch(err => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

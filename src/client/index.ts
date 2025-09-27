@@ -14,7 +14,16 @@ export class AgentClient {
     this.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   }
 
-  async next(input?: string, state?: State, opts?: { returnTool?: boolean; returnStep?: boolean; verbose?: boolean; constraints?: DecisionConstraints }): Promise<Response> {
+  async next(
+    input?: string,
+    state?: State,
+    opts?: {
+      returnTool?: boolean;
+      returnStep?: boolean;
+      verbose?: boolean;
+      constraints?: DecisionConstraints;
+    },
+  ): Promise<Response> {
     const res = await fetch(this.baseUrl + '/next', {
       method: 'POST',
       headers: this.headers,
@@ -26,7 +35,16 @@ export class AgentClient {
     return (await res.json()) as Response;
   }
 
-  async *stream(input?: string, state?: State, opts?: { returnTool?: boolean; returnStep?: boolean; verbose?: boolean; constraints?: DecisionConstraints }): AsyncIterable<StreamEvent> {
+  async *stream(
+    input?: string,
+    state?: State,
+    opts?: {
+      returnTool?: boolean;
+      returnStep?: boolean;
+      verbose?: boolean;
+      constraints?: DecisionConstraints;
+    },
+  ): AsyncIterable<StreamEvent> {
     const res = await fetch(this.baseUrl + '/stream', {
       method: 'POST',
       headers: this.headers,
@@ -36,7 +54,9 @@ export class AgentClient {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
     // NDJSON reader
-    const reader = (res.body as any).getReader ? (res.body as ReadableStream<Uint8Array>).getReader() : null;
+    const reader = (res.body as any).getReader
+      ? (res.body as ReadableStream<Uint8Array>).getReader()
+      : null;
     if (reader) {
       const decoder = new TextDecoder();
       let buf = '';
@@ -56,7 +76,9 @@ export class AgentClient {
         }
       }
       if (buf.trim()) {
-        try { yield JSON.parse(buf.trim()) as StreamEvent; } catch {}
+        try {
+          yield JSON.parse(buf.trim()) as StreamEvent;
+        } catch {}
       }
       return;
     }
@@ -65,8 +87,9 @@ export class AgentClient {
     for (const line of text.split('\n')) {
       const s = line.trim();
       if (!s) continue;
-      try { yield JSON.parse(s) as StreamEvent; } catch {}
+      try {
+        yield JSON.parse(s) as StreamEvent;
+      } catch {}
     }
   }
 }
-

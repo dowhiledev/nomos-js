@@ -12,7 +12,11 @@ try {
       if (m) {
         const key = m[1];
         let val = m[2];
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('\'') && val.endsWith('\''))) val = val.slice(1, -1);
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        )
+          val = val.slice(1, -1);
         process.env[key] = process.env[key] ?? val;
       }
     }
@@ -20,11 +24,19 @@ try {
 } catch {}
 
 function prettyArgs(args: Record<string, any>): string {
-  try { return JSON.stringify(args); } catch { return String(args); }
+  try {
+    return JSON.stringify(args);
+  } catch {
+    return String(args);
+  }
 }
 
 async function main() {
-  const llm = new OpenAILLM({ provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY });
+  const llm = new OpenAILLM({
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   // Tools (mocked behavior sufficient for demo)
   const getAvailableCoffeeOptions = createTool(
@@ -33,43 +45,81 @@ async function main() {
     z.object({}),
     async () => ({
       options: [
-        { coffee_type: 'Espresso', sizes: ['Small', 'Medium', 'Large'], price: { Small: 3.0, Medium: 3.5, Large: 4.0 } },
-        { coffee_type: 'Latte', sizes: ['Small', 'Medium', 'Large'], price: { Small: 4.0, Medium: 4.5, Large: 5.0 } },
-        { coffee_type: 'Cappuccino', sizes: ['Small', 'Medium', 'Large'], price: { Small: 4.0, Medium: 4.5, Large: 5.0 } },
+        {
+          coffee_type: 'Espresso',
+          sizes: ['Small', 'Medium', 'Large'],
+          price: { Small: 3.0, Medium: 3.5, Large: 4.0 },
+        },
+        {
+          coffee_type: 'Latte',
+          sizes: ['Small', 'Medium', 'Large'],
+          price: { Small: 4.0, Medium: 4.5, Large: 5.0 },
+        },
+        {
+          coffee_type: 'Cappuccino',
+          sizes: ['Small', 'Medium', 'Large'],
+          price: { Small: 4.0, Medium: 4.5, Large: 5.0 },
+        },
       ],
-    })
+    }),
   );
   const addToCart = createTool(
     'add_to_cart',
     'Add a coffee item to cart.',
     z.object({ coffee_type: z.string(), size: z.string(), price: z.number().optional() }),
-    async ({ coffee_type, size, price }) => ({ message: `Added ${size} ${coffee_type}${price ? ` ($${price.toFixed(2)})` : ''} to cart.` })
+    async ({ coffee_type, size, price }) => ({
+      message: `Added ${size} ${coffee_type}${price ? ` ($${price.toFixed(2)})` : ''} to cart.`,
+    }),
   );
   const removeItem = createTool(
-    'remove_item', 'Remove an item by id', z.object({ item_id: z.string() }), async ({ item_id }) => ({ message: `Removed ${item_id}` })
+    'remove_item',
+    'Remove an item by id',
+    z.object({ item_id: z.string() }),
+    async ({ item_id }) => ({ message: `Removed ${item_id}` }),
   );
-  const clearCart = createTool(
-    'clear_cart', 'Clear the cart', z.object({}), async () => ({ message: 'Cart cleared.' })
-  );
+  const clearCart = createTool('clear_cart', 'Clear the cart', z.object({}), async () => ({
+    message: 'Cart cleared.',
+  }));
   const getOrderSummary = createTool(
-    'get_order_summary', 'Get summary + total', z.object({}), async () => ({ summary: ['1x Latte (Medium) - $4.50', '1x Espresso (Small) - $3.00'], total: 7.5 })
+    'get_order_summary',
+    'Get summary + total',
+    z.object({}),
+    async () => ({
+      summary: ['1x Latte (Medium) - $4.50', '1x Espresso (Small) - $3.00'],
+      total: 7.5,
+    }),
   );
   const finalizeOrder = createTool(
-    'finalize_order', 'Finalize the order', z.object({ payment_method: z.enum(['Card', 'Cash']), payment: z.number().optional() }), async ({ payment_method, payment }) => ({ message: `Order finalized with ${payment_method}${payment_method === 'Cash' && payment ? ` ($${payment.toFixed(2)})` : ''}.` })
+    'finalize_order',
+    'Finalize the order',
+    z.object({ payment_method: z.enum(['Card', 'Cash']), payment: z.number().optional() }),
+    async ({ payment_method, payment }) => ({
+      message: `Order finalized with ${payment_method}${payment_method === 'Cash' && payment ? ` ($${payment.toFixed(2)})` : ''}.`,
+    }),
   );
 
   // Barista-like steps + flow
   const steps = [
     {
       step_id: 'start',
-      description: 'Greet and offer help. Use get_available_coffee_options if needed. MOVE to take_coffee_order when ready.',
+      description:
+        'Greet and offer help. Use get_available_coffee_options if needed. MOVE to take_coffee_order when ready.',
       available_tools: ['get_available_coffee_options'],
       routes: [{ target: 'take_coffee_order', condition: 'Ready to order' }],
-      examples: [{ context: 'User asks for options', decision: { action: 'TOOL_CALL', tool_call: { tool_name: 'get_available_coffee_options', tool_kwargs: {} } } }],
+      examples: [
+        {
+          context: 'User asks for options',
+          decision: {
+            action: 'TOOL_CALL',
+            tool_call: { tool_name: 'get_available_coffee_options', tool_kwargs: {} },
+          },
+        },
+      ],
     },
     {
       step_id: 'take_coffee_order',
-      description: 'Ask for coffee and size. Use add_to_cart/remove_item/clear_cart. MOVE to finalize_order when done.',
+      description:
+        'Ask for coffee and size. Use add_to_cart/remove_item/clear_cart. MOVE to finalize_order when done.',
       available_tools: ['get_available_coffee_options', 'add_to_cart', 'remove_item', 'clear_cart'],
       routes: [
         { target: 'finalize_order', condition: 'User wants to finalize the order' },
@@ -79,30 +129,53 @@ async function main() {
     },
     {
       step_id: 'finalize_order',
-      description: 'Get order summary then finalize; change order -> take_coffee_order; cancel -> end.',
+      description:
+        'Get order summary then finalize; change order -> take_coffee_order; cancel -> end.',
       available_tools: ['get_order_summary', 'finalize_order'],
       routes: [
         { target: 'end', condition: 'Order finalized or canceled' },
         { target: 'take_coffee_order', condition: 'Change order' },
       ],
     },
-    { step_id: 'end', description: 'Clear the cart and end.', available_tools: ['clear_cart'], routes: [] },
+    {
+      step_id: 'end',
+      description: 'Clear the cart and end.',
+      available_tools: ['clear_cart'],
+      routes: [],
+    },
   ];
-  const flows = [ { config: { flow_id: 'take_coffee_order', name: 'Coffee Ordering', enters: ['take_coffee_order'], exits: ['finalize_order', 'end'] }, steps: [] } ];
+  const flows = [
+    {
+      config: {
+        flow_id: 'take_coffee_order',
+        name: 'Coffee Ordering',
+        enters: ['take_coffee_order'],
+        exits: ['finalize_order', 'end'],
+      },
+      steps: [],
+    },
+  ];
 
   const agent = new Agent({
     name: 'barista_stream',
     steps,
     flows,
     startStepId: 'start',
-    tools: [getAvailableCoffeeOptions, addToCart, removeItem, clearCart, getOrderSummary, finalizeOrder],
+    tools: [
+      getAvailableCoffeeOptions,
+      addToCart,
+      removeItem,
+      clearCart,
+      getOrderSummary,
+      finalizeOrder,
+    ],
     llm,
   });
 
   let state: any = undefined;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('Barista streaming demo. Type your message (or :reset, :help). Ctrl+C to exit.');
-  const ask = () => new Promise<string>(resolve => rl.question('You: ', resolve));
+  const ask = () => new Promise<string>((resolve) => rl.question('You: ', resolve));
 
   async function streamTurn(text?: string) {
     const color = {
@@ -129,7 +202,11 @@ async function main() {
       }
 
       // Reasoning (print new non-empty lines) BEFORE any assistant text
-      if (!printedAssistantHeader && upd.decision && Array.isArray((upd.decision as any).reasoning)) {
+      if (
+        !printedAssistantHeader &&
+        upd.decision &&
+        Array.isArray((upd.decision as any).reasoning)
+      ) {
         for (const r of (upd.decision as any).reasoning as string[]) {
           const line = (r || '').trim();
           if (line && !printedReasons.has(line)) {
@@ -184,11 +261,22 @@ async function main() {
 
   while (true) {
     const input = await ask();
-    if (input === ':help') { console.log('Commands: :reset – clear state'); continue; }
-    if (input === ':reset') { state = undefined; console.log('State cleared.'); continue; }
+    if (input === ':help') {
+      console.log('Commands: :reset – clear state');
+      continue;
+    }
+    if (input === ':reset') {
+      state = undefined;
+      console.log('State cleared.');
+      continue;
+    }
     const res = await streamTurn(input);
     let safety = 0;
-    while (!res.hadAnyChunk && (res.lastAction === 'MOVE' || res.lastAction === 'TOOL_CALL') && safety < 3) {
+    while (
+      !res.hadAnyChunk &&
+      (res.lastAction === 'MOVE' || res.lastAction === 'TOOL_CALL') &&
+      safety < 3
+    ) {
       const r2 = await streamTurn(undefined);
       if (r2.hadAnyChunk || (r2.lastAction !== 'MOVE' && r2.lastAction !== 'TOOL_CALL')) break;
       safety++;
@@ -196,4 +284,7 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

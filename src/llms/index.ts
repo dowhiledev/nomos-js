@@ -6,9 +6,15 @@ export interface LLMBase {
   generateText(prompt: string, options?: Record<string, any>): Promise<string>;
   embedText(text: string): Promise<number[]>;
   embedBatch(texts: string[]): Promise<number[][]>;
-  generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T>;
+  generateObject<T>(
+    schema: z.ZodType<T>,
+    args: { prompt: string; options?: Record<string, any> },
+  ): Promise<T>;
   streamText(prompt: string, options?: Record<string, any>): AsyncIterable<string>;
-  streamObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<{ partialStream: AsyncIterable<T>; final: Promise<T> }>;
+  streamObject<T>(
+    schema: z.ZodType<T>,
+    args: { prompt: string; options?: Record<string, any> },
+  ): Promise<{ partialStream: AsyncIterable<T>; final: Promise<T> }>;
 }
 
 // Configuration schemas
@@ -78,10 +84,18 @@ export class OpenAILLM implements LLMBase {
     return out;
   }
 
-  async generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T> {
+  async generateObject<T>(
+    schema: z.ZodType<T>,
+    args: { prompt: string; options?: Record<string, any> },
+  ): Promise<T> {
     const provider = await this.getProvider();
     const model = provider(this.config.model);
-    const res = await generateObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
+    const res = await generateObject({
+      model,
+      schema,
+      prompt: args.prompt,
+      ...(args.options || {}),
+    });
     return res.object as T;
   }
 
@@ -98,11 +112,17 @@ export class OpenAILLM implements LLMBase {
     return gen();
   }
 
-  async streamObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }) {
+  async streamObject<T>(
+    schema: z.ZodType<T>,
+    args: { prompt: string; options?: Record<string, any> },
+  ) {
     const provider = await this.getProvider();
     const model = provider(this.config.model);
     const res = await streamObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
-    return { partialStream: res.partialObjectStream as AsyncIterable<T>, final: res.object as Promise<T> };
+    return {
+      partialStream: res.partialObjectStream as AsyncIterable<T>,
+      final: res.object as Promise<T>,
+    };
   }
 }
 
@@ -117,7 +137,9 @@ export class AnthropicLLM implements LLMBase {
     try {
       const mod = await import('@ai-sdk/anthropic');
       if ('createAnthropic' in mod) {
-        const createAnthropic = (mod as any).createAnthropic as (opts: any) => (modelId: string) => any;
+        const createAnthropic = (mod as any).createAnthropic as (
+          opts: any,
+        ) => (modelId: string) => any;
         return createAnthropic({ apiKey: this.config.apiKey, baseURL: this.config.baseURL });
       }
       return (mod as any).anthropic as (modelId: string) => any;
@@ -143,9 +165,10 @@ export class AnthropicLLM implements LLMBase {
     // Fallback to OpenAI embeddings
     const openaiMod = await import('@ai-sdk/openai');
     const embeddingId = this.config.embeddingModel || 'text-embedding-3-small';
-    const provider = 'createOpenAI' in openaiMod
-      ? (openaiMod as any).createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : (openaiMod as any).openai;
+    const provider =
+      'createOpenAI' in openaiMod
+        ? (openaiMod as any).createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
+        : (openaiMod as any).openai;
     const embeddingModel = provider.embedding(embeddingId);
     const result = await embed({ model: embeddingModel, value: text });
     return result.embedding;
@@ -159,10 +182,18 @@ export class AnthropicLLM implements LLMBase {
     return out;
   }
 
-  async generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T> {
+  async generateObject<T>(
+    schema: z.ZodType<T>,
+    args: { prompt: string; options?: Record<string, any> },
+  ): Promise<T> {
     const provider = await this.getProvider();
     const model = provider(this.config.model);
-    const res = await generateObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
+    const res = await generateObject({
+      model,
+      schema,
+      prompt: args.prompt,
+      ...(args.options || {}),
+    });
     return res.object as T;
   }
 
@@ -179,11 +210,17 @@ export class AnthropicLLM implements LLMBase {
     return gen();
   }
 
-  async streamObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }) {
+  async streamObject<T>(
+    schema: z.ZodType<T>,
+    args: { prompt: string; options?: Record<string, any> },
+  ) {
     const provider = await this.getProvider();
     const model = provider(this.config.model);
     const res = await streamObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
-    return { partialStream: res.partialObjectStream as AsyncIterable<T>, final: res.object as Promise<T> };
+    return {
+      partialStream: res.partialObjectStream as AsyncIterable<T>,
+      final: res.object as Promise<T>,
+    };
   }
 }
 

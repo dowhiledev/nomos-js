@@ -26,11 +26,13 @@
   ],
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier -w .",
     "prepublishOnly": "npm run build && npm run test"
   },
   "keywords": [
@@ -48,6 +50,9 @@
     "type": "git",
     "url": "git+https://github.com/dowhiledev/nomos.git",
     "directory": "typescript"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -67,6 +72,8 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
     "tsx": "^4.20.6",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"

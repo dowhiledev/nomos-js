@@ -33,5 +33,5 @@
   - Docs: Phase plan present; arch and API surface added.
 
 Notes
-- Targets for v1: structured decision gen, Node/Edge compatibility, minimal state machine for route validation, basic memory with summaries, OpenAI/Anthropic providers via AI SDK.
 
+- Targets for v1: structured decision gen, Node/Edge compatibility, minimal state machine for route validation, basic memory with summaries, OpenAI/Anthropic providers via AI SDK.

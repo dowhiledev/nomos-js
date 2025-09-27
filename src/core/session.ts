@@ -80,12 +80,19 @@ export class Session {
     this.maxIter = config.maxIter || 5;
 
     // Initialize state machine and memory
-    this.stateMachine = new StateMachine({ steps: this.steps, startStepId: this.startStepId, flows: this.flows });
+    this.stateMachine = new StateMachine({
+      steps: this.steps,
+      startStepId: this.startStepId,
+      flows: this.flows,
+    });
     if (config.state?.current_step_id) {
       const flowId = (config.state as any).flow_state?.flow_id as string | undefined;
       this.stateMachine.loadFromState(config.state.current_step_id, flowId);
     }
-    this.memory = new Memory(config.state?.history, { adapter: config.memoryAdapter, summarizeEvery: config.summarizeEvery });
+    this.memory = new Memory(config.state?.history, {
+      adapter: config.memoryAdapter,
+      summarizeEvery: config.summarizeEvery,
+    });
     this.eventEmitter = config.eventEmitter;
     this.stateAdapter = config.stateAdapter;
   }
@@ -122,7 +129,9 @@ export class Session {
 
   private computePreviousContext(): Array<Message | Summary> {
     const hist = this.memory.getHistory();
-    const prev = hist.filter(i => ('type' in i) || ('summary' in i)).slice(-5) as Array<Message | Summary>;
+    const prev = hist.filter((i) => 'type' in i || 'summary' in i).slice(-5) as Array<
+      Message | Summary
+    >;
     return prev;
   }
 
@@ -157,16 +166,23 @@ export class Session {
         const currentEmb = await this.embeddingModel.embedText(context);
         const exEmbeddings = await this.embeddingModel.embedBatch(contexts);
         // cosine similarity
-        const sims: number[] = exEmbeddings.map((emb: number[]) => cosineSimilarity(currentEmb, emb));
-        const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map((ex: any, i: number) => ({ ex, sim: sims[i] }));
+        const sims: number[] = exEmbeddings.map((emb: number[]) =>
+          cosineSimilarity(currentEmb, emb),
+        );
+        const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map(
+          (ex: any, i: number) => ({ ex, sim: sims[i] }),
+        );
         pairs.sort((a: { ex: any; sim: number }, b: { ex: any; sim: number }) => b.sim - a.sim);
         const max = 3;
         const threshold = 0.5;
-        const picked = pairs.filter((p: { ex: any; sim: number }) => p.sim >= threshold).slice(0, max);
+        const picked = pairs
+          .filter((p: { ex: any; sim: number }) => p.sim >= threshold)
+          .slice(0, max);
         if (picked.length > 0) {
           examplesText += 'Examples (context -> decision):\n';
           for (const { ex } of picked) {
-            const decisionTxt = typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
+            const decisionTxt =
+              typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
             examplesText += `- ${ex.context} -> ${decisionTxt}\n`;
           }
           examplesText += '\n';
@@ -225,7 +241,7 @@ export class Session {
     // Available routes
     if (step.routes.length > 0) {
       prompt += 'Available Routes:\n';
-      step.routes.forEach(route => {
+      step.routes.forEach((route) => {
         prompt += `- If ${route.condition}, go to ${route.target}\n`;
       });
       prompt += '\n';
@@ -234,7 +250,7 @@ export class Session {
     // Available tools
     if (step.available_tools.length > 0) {
       prompt += 'Available Tools:\n';
-      step.available_tools.forEach(toolName => {
+      step.available_tools.forEach((toolName) => {
         const tool = this.tools.get(toolName);
         if (tool) {
           prompt += `- ${tool.name}: ${tool.description}\n`;
@@ -297,14 +313,29 @@ Action Types:
 
       const raw = JSON.parse(jsonMatch[0]);
       const step_id = raw.step_id ?? raw.target;
-      const tool_call = raw.tool_call ?? (raw.tool_name ? { tool_name: raw.tool_name, tool_kwargs: raw.tool_args ?? {} } : undefined);
-      const reasoning = Array.isArray(raw.reasoning) ? raw.reasoning : (raw.reasoning ? [raw.reasoning] : undefined);
-      return { action: raw.action, step_id, response: raw.response, tool_call, reasoning } as Decision;
+      const tool_call =
+        raw.tool_call ??
+        (raw.tool_name
+          ? { tool_name: raw.tool_name, tool_kwargs: raw.tool_args ?? {} }
+          : undefined);
+      const reasoning = Array.isArray(raw.reasoning)
+        ? raw.reasoning
+        : raw.reasoning
+          ? [raw.reasoning]
+          : undefined;
+      return {
+        action: raw.action,
+        step_id,
+        response: raw.response,
+        tool_call,
+        reasoning,
+      } as Decision;
     } catch (error) {
       // Fallback decision
       return {
         action: 'RESPOND',
-        response: 'I apologize, but I had trouble understanding how to proceed. Could you please rephrase your request?',
+        response:
+          'I apologize, but I had trouble understanding how to proceed. Could you please rephrase your request?',
         reasoning: 'Failed to parse LLM decision, using fallback',
       };
     }
@@ -322,8 +353,8 @@ Action Types:
 
     if (this.iterationCount > this.maxIter) {
       return this.createResponse(
-        'I apologize, but I\'ve reached the maximum number of iterations. Please start a new conversation.',
-        'END'
+        "I apologize, but I've reached the maximum number of iterations. Please start a new conversation.",
+        'END',
       );
     }
 
@@ -345,7 +376,12 @@ Action Types:
       while (true) {
         // Emit decision before execution for correct event ordering
         this.emitEvent('decision', { decision: this.canonicalizeDecision(decision) });
-        const exec = await this.executeDecision(this.normalizeDecision(decision), returnTool, returnStep, verbose);
+        const exec = await this.executeDecision(
+          this.normalizeDecision(decision),
+          returnTool,
+          returnStep,
+          verbose,
+        );
         finalRes = exec;
         if (exec.tool_output) lastToolOutput = exec.tool_output;
 
@@ -374,14 +410,14 @@ Action Types:
 
       if (this.errorCount >= this.maxErrors) {
         return this.createResponse(
-          'I apologize, but I\'ve encountered too many errors. Please start a new conversation.',
-          'END'
+          "I apologize, but I've encountered too many errors. Please start a new conversation.",
+          'END',
         );
       }
 
       return this.createResponse(
         'I apologize, but I encountered an error. Let me try again.',
-        'RESPOND'
+        'RESPOND',
       );
     }
   }
@@ -391,7 +427,7 @@ Action Types:
     // Simple context building - could be enhanced with summarization
     const recentMessages = this.memory.getHistory().slice(-5); // Last 5 items
     return recentMessages
-      .map(item => {
+      .map((item) => {
         if ('role' in item) {
           return `${item.role}: ${item.content}`;
         } else if ('summary' in item) {
@@ -410,7 +446,7 @@ Action Types:
     decision: Decision,
     returnTool: boolean,
     returnStep: boolean,
-    verbose: boolean
+    verbose: boolean,
   ): Promise<Response> {
     let toolOutput: string | null = null;
 
@@ -441,8 +477,13 @@ Action Types:
                   const summaryText = lines.length ? `\n- ${lines.join('\n- ')}` : '';
                   decision.response = `Here is your order summary:${summaryText}${typeof total === 'number' ? `\nTotal: $${total.toFixed(2)}.` : ''} Would you like to pay by Card or Cash, or make changes?`;
                 } else if (toolName === 'finalize_order') {
-                  decision.response = parsed?.message || 'Your order has been finalized. Thank you!';
-                } else if (toolName === 'add_to_cart' || toolName === 'remove_item' || toolName === 'clear_cart') {
+                  decision.response =
+                    parsed?.message || 'Your order has been finalized. Thank you!';
+                } else if (
+                  toolName === 'add_to_cart' ||
+                  toolName === 'remove_item' ||
+                  toolName === 'clear_cart'
+                ) {
                   if (parsed?.message) decision.response = parsed.message;
                 }
               } catch {
@@ -452,7 +493,11 @@ Action Types:
           } catch (error) {
             toolOutput = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             // Avoid noisy auto-response; model can handle error messaging on next turn
-            this.emitEvent('tool_error', { tool_name: toolName, tool_args: toolArgs, error: String(error) });
+            this.emitEvent('tool_error', {
+              tool_name: toolName,
+              tool_args: toolArgs,
+              error: String(error),
+            });
           }
         }
         break;
@@ -506,17 +551,20 @@ Action Types:
   private emitEvent(type: string, data?: any, decision?: any) {
     try {
       if (!this.eventEmitter) return;
-      this.eventEmitter.emit({ sessionId: this.sessionId, type, data, decision, timestamp: new Date() });
+      this.eventEmitter.emit({
+        sessionId: this.sessionId,
+        type,
+        data,
+        decision,
+        timestamp: new Date(),
+      });
     } catch {
       // swallow emitter errors
     }
   }
 
   // Create response helper
-  private createResponse(
-    response: string,
-    action: 'RESPOND' | 'END' = 'RESPOND'
-  ): Response {
+  private createResponse(response: string, action: 'RESPOND' | 'END' = 'RESPOND'): Response {
     if (action === 'RESPOND') {
       this.memory.addMessage('assistant', response);
     }
@@ -529,16 +577,23 @@ Action Types:
   }
 
   // Ensure the decision is valid for the current step; otherwise retry with RESPOND constraint
-  private async ensureValidDecision(decision: Decision, userInput: string, context: string): Promise<Decision> {
+  private async ensureValidDecision(
+    decision: Decision,
+    userInput: string,
+    context: string,
+  ): Promise<Decision> {
     const step = this.currentStep;
-    const availableRouteTargets = new Set(step.routes.map(r => r.target));
+    const availableRouteTargets = new Set(step.routes.map((r) => r.target));
     const availableToolNames = new Set(step.available_tools);
 
     // Invalid MOVE: missing or unknown target
     if (decision.action === 'MOVE') {
       const target = (decision as any).target ?? decision.step_id;
       if (!target || !availableRouteTargets.has(target)) {
-        return await this.generateDecision(userInput, context, { actions: ['RESPOND'], fields: ['response', 'reasoning'] });
+        return await this.generateDecision(userInput, context, {
+          actions: ['RESPOND'],
+          fields: ['response', 'reasoning'],
+        });
       }
     }
 
@@ -546,7 +601,10 @@ Action Types:
     if (decision.action === 'TOOL_CALL') {
       const name = (decision as any).tool_name ?? decision.tool_call?.tool_name;
       if (!name || !availableToolNames.has(name) || !this.tools.has(name)) {
-        return await this.generateDecision(userInput, context, { actions: ['RESPOND'], fields: ['response', 'reasoning'] });
+        return await this.generateDecision(userInput, context, {
+          actions: ['RESPOND'],
+          fields: ['response', 'reasoning'],
+        });
       }
 
       // Validate arguments against tool schema; guide retry if missing
@@ -576,7 +634,8 @@ Action Types:
       const missing = new Set<string>();
       for (const issue of issues) {
         // Path like ['text'] for missing required key
-        const key = Array.isArray(issue.path) && issue.path.length ? String(issue.path[0]) : undefined;
+        const key =
+          Array.isArray(issue.path) && issue.path.length ? String(issue.path[0]) : undefined;
         if (key) missing.add(key);
       }
       return Array.from(missing);
@@ -592,13 +651,22 @@ Action Types:
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
-  ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Decision; response?: Response; response_chunk?: string; tool_call?: { tool_name: string; tool_args: Record<string, any> } }> {
+  ): AsyncIterable<{
+    type: 'partial' | 'final';
+    decision?: Decision;
+    response?: Response;
+    response_chunk?: string;
+    tool_call?: { tool_name: string; tool_args: Record<string, any> };
+  }> {
     this.iterationCount++;
     if (this.iterationCount > this.maxIter) {
-      yield { type: 'final', response: this.createResponse(
-        'I apologize, but I\'ve reached the maximum number of iterations. Please start a new conversation.',
-        'END'
-      ) };
+      yield {
+        type: 'final',
+        response: this.createResponse(
+          "I apologize, but I've reached the maximum number of iterations. Please start a new conversation.",
+          'END',
+        ),
+      };
       return;
     }
 
@@ -611,14 +679,19 @@ Action Types:
           const contexts = (step as any).examples.map((e: any) => e.context as string);
           const currentEmb = await this.embeddingModel.embedText(this.buildContext());
           const exEmbeddings = await this.embeddingModel.embedBatch(contexts);
-          const sims: number[] = exEmbeddings.map((emb: number[]) => cosineSimilarity(currentEmb, emb));
-          const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map((ex: any, i: number) => ({ ex, sim: sims[i] }));
+          const sims: number[] = exEmbeddings.map((emb: number[]) =>
+            cosineSimilarity(currentEmb, emb),
+          );
+          const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map(
+            (ex: any, i: number) => ({ ex, sim: sims[i] }),
+          );
           pairs.sort((a, b) => b.sim - a.sim);
           const picked = pairs.filter((p) => p.sim >= 0.5).slice(0, 3);
           if (picked.length > 0) {
             examplesText += 'Examples (context -> decision):\n';
             for (const { ex } of picked) {
-              const decisionTxt = typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
+              const decisionTxt =
+                typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
               examplesText += `- ${ex.context} -> ${decisionTxt}\n`;
             }
             examplesText += '\n';
@@ -626,7 +699,13 @@ Action Types:
         } catch {}
       }
 
-      const prompt = this.buildDecisionPrompt(userInput || '', this.buildContext(), step, constraints, examplesText);
+      const prompt = this.buildDecisionPrompt(
+        userInput || '',
+        this.buildContext(),
+        step,
+        constraints,
+        examplesText,
+      );
       const { DecisionSchema } = await import('../models/schemas');
       let schema = DecisionSchema as any;
       if (constraints?.actions && constraints.actions.length > 0) {
@@ -636,7 +715,10 @@ Action Types:
       }
 
       // Stream structured object with partial updates
-      const { partialStream, final } = await this.llm.streamObject(schema, { prompt, options: { temperature: 0.1 } }) as any;
+      const { partialStream, final } = (await this.llm.streamObject(schema, {
+        prompt,
+        options: { temperature: 0.1 },
+      })) as any;
       let lastResponseText = '';
       let toolAnnounced = false;
       let actionAnnounced = false;
@@ -646,17 +728,29 @@ Action Types:
         // Emit action once
         if (p.action && !actionAnnounced) {
           actionAnnounced = true;
-          yield { type: 'partial', decision: this.canonicalizeDecision({ action: p.action } as any) };
+          yield {
+            type: 'partial',
+            decision: this.canonicalizeDecision({ action: p.action } as any),
+          };
         }
         // Announce tool call before execution
         if (!toolAnnounced && (p as any).tool_call?.tool_name) {
           toolAnnounced = true;
-          yield { type: 'partial', tool_call: { tool_name: (p as any).tool_call.tool_name, tool_args: (p as any).tool_call.tool_kwargs || {} } };
+          yield {
+            type: 'partial',
+            tool_call: {
+              tool_name: (p as any).tool_call.tool_name,
+              tool_args: (p as any).tool_call.tool_kwargs || {},
+            },
+          };
         }
         // Stream reasoning lines as they become available
         if (Array.isArray((p as any).reasoning) && (p as any).reasoning.length > reasoningCount) {
           reasoningCount = (p as any).reasoning.length;
-          yield { type: 'partial', decision: this.canonicalizeDecision({ reasoning: (p as any).reasoning } as any) };
+          yield {
+            type: 'partial',
+            decision: this.canonicalizeDecision({ reasoning: (p as any).reasoning } as any),
+          };
         }
         // Stream response chunks only for RESPOND action
         if (p.action === 'RESPOND' && typeof (p as any).response === 'string') {
@@ -669,10 +763,14 @@ Action Types:
         }
       }
       // Final decision
-      let finalDecision: Decision = await final as any;
+      let finalDecision: Decision = (await final) as any;
       finalDecision = this.normalizeDecision(finalDecision);
       // Validate/correct final decision before execution (fills missing tool args, etc.)
-      const validated = await this.ensureValidDecision(finalDecision, userInput || '', this.buildContext());
+      const validated = await this.ensureValidDecision(
+        finalDecision,
+        userInput || '',
+        this.buildContext(),
+      );
       // If decision is TOOL_CALL and we now have concrete args after validation, surface them before execution
       if ((validated as any).action === 'TOOL_CALL') {
         const tn = (validated as any).tool_name ?? (validated as any).tool_call?.tool_name;
@@ -689,21 +787,36 @@ Action Types:
         } catch {}
       }
       // Execute after announcing tool call
-      const finalResponse = await this.executeDecision(this.normalizeDecision(validated), returnTool, returnStep, verbose);
-      yield { type: 'final', decision: verbose ? finalDecision : undefined, response: finalResponse };
+      const finalResponse = await this.executeDecision(
+        this.normalizeDecision(validated),
+        returnTool,
+        returnStep,
+        verbose,
+      );
+      yield {
+        type: 'final',
+        decision: verbose ? finalDecision : undefined,
+        response: finalResponse,
+      };
     } catch (error) {
       this.errorCount++;
       if (this.errorCount >= this.maxErrors) {
-        yield { type: 'final', response: this.createResponse(
-          'I apologize, but I\'ve encountered too many errors. Please start a new conversation.',
-          'END'
-        ) };
+        yield {
+          type: 'final',
+          response: this.createResponse(
+            "I apologize, but I've encountered too many errors. Please start a new conversation.",
+            'END',
+          ),
+        };
         return;
       }
-      yield { type: 'final', response: this.createResponse(
-        'I apologize, but I encountered an error. Let me try again.',
-        'RESPOND'
-      ) };
+      yield {
+        type: 'final',
+        response: this.createResponse(
+          'I apologize, but I encountered an error. Let me try again.',
+          'RESPOND',
+        ),
+      };
     }
   }
 

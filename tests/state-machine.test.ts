@@ -4,8 +4,26 @@ import { StateMachine } from '../src/core/state-machine';
 describe('StateMachine', () => {
   it('validates routes and tracks flow transitions', () => {
     const steps = new Map([
-      ['a', { step_id: 'a', description: 'A', routes: [{ target: 'b', condition: 'go' }], available_tools: [], flow_id: 'flow1' } as any],
-      ['b', { step_id: 'b', description: 'B', routes: [{ target: 'c', condition: 'next' }], available_tools: [], flow_id: 'flow1' } as any],
+      [
+        'a',
+        {
+          step_id: 'a',
+          description: 'A',
+          routes: [{ target: 'b', condition: 'go' }],
+          available_tools: [],
+          flow_id: 'flow1',
+        } as any,
+      ],
+      [
+        'b',
+        {
+          step_id: 'b',
+          description: 'B',
+          routes: [{ target: 'c', condition: 'next' }],
+          available_tools: [],
+          flow_id: 'flow1',
+        } as any,
+      ],
       ['c', { step_id: 'c', description: 'C', routes: [], available_tools: [] } as any],
     ]);
 

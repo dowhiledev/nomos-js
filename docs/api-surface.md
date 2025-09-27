@@ -19,7 +19,7 @@
   - Providers: `OpenAILLM` (mock), `AnthropicLLM` (mock). Planned: real AI SDK bindings for OpenAI/Anthropic/Google/Ollama
 
 Planned Additions
+
 - `state-machine`: route validation, flow transitions.
 - `memory`: session/flow memory with summarization.
 - `events`: event emitter interface and OpenTelemetry context propagation.
-

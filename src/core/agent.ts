@@ -1,12 +1,6 @@
 import { z } from 'zod';
 import { StepSchema } from '../models/schemas';
-import type {
-  Step,
-  Flow,
-  AgentConfig,
-  State,
-  Response,
-} from '../models/schemas';
+import type { Step, Flow, AgentConfig, State, Response } from '../models/schemas';
 import type { LLMBase } from '../llms';
 import type { DecisionConstraints } from '../models/schemas';
 import type { Tool } from '../tools';
@@ -60,7 +54,7 @@ export class Agent {
     this.startStepId = options.startStepId;
     this.persona = options.persona;
     this.systemMessage = options.systemMessage;
-    this.tools = new Map((options.tools || []).map(tool => [tool.name, tool]));
+    this.tools = new Map((options.tools || []).map((tool) => [tool.name, tool]));
     this.flows = options.flows;
     this.showStepsDesc = options.showStepsDesc || false;
     this.maxErrors = options.maxErrors || 3;
@@ -104,18 +98,14 @@ export class Agent {
     for (const step of this.steps.values()) {
       for (const route of step.routes) {
         if (!this.steps.has(route.target)) {
-          throw new Error(
-            `Step '${step.step_id}' has invalid route target '${route.target}'`
-          );
+          throw new Error(`Step '${step.step_id}' has invalid route target '${route.target}'`);
         }
       }
 
       // Validate available tools
       for (const toolName of step.available_tools) {
         if (!this.tools.has(toolName)) {
-          throw new Error(
-            `Step '${step.step_id}' references unknown tool '${toolName}'`
-          );
+          throw new Error(`Step '${step.step_id}' references unknown tool '${toolName}'`);
         }
       }
     }
@@ -153,9 +143,7 @@ export class Agent {
     verbose: boolean = false,
     constraints?: DecisionConstraints,
   ): Promise<Response> {
-    const session = sessionData
-      ? this.createSession(sessionData)
-      : this.createSession();
+    const session = sessionData ? this.createSession(sessionData) : this.createSession();
 
     return session.next(userInput, returnTool, returnStep, verbose, constraints);
   }
@@ -168,17 +156,27 @@ export class Agent {
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
-  ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Response['decision']; response?: Response }> {
+  ): AsyncIterable<{
+    type: 'partial' | 'final';
+    decision?: Response['decision'];
+    response?: Response;
+  }> {
     const session = sessionData ? this.createSession(sessionData) : this.createSession();
     return session.streamNext(userInput, returnTool, returnStep, verbose, constraints);
   }
 
   // Restore a session from adapter history + provided current step id
   async restoreSessionFromAdapter(sessionId: string, currentStepId: string): Promise<Session> {
-    const session = this.createSession({ session_id: sessionId, current_step_id: currentStepId, history: [] });
+    const session = this.createSession({
+      session_id: sessionId,
+      current_step_id: currentStepId,
+      history: [],
+    });
     const adapter = (session as any).memory?.adapter || (this as any).memoryAdapter;
     if (!this['memoryAdapter']) {
-      throw new Error('No memoryAdapter configured on Agent. Provide one to use restoreSessionFromAdapter.');
+      throw new Error(
+        'No memoryAdapter configured on Agent. Provide one to use restoreSessionFromAdapter.',
+      );
     }
     const history = await (this as any).memoryAdapter.load(sessionId);
     return this.createSession({ session_id: sessionId, current_step_id: currentStepId, history });
@@ -229,17 +227,13 @@ export class Agent {
     // Validate the step
     for (const route of step.routes) {
       if (!this.steps.has(route.target)) {
-        throw new Error(
-          `Step '${step.step_id}' has invalid route target '${route.target}'`
-        );
+        throw new Error(`Step '${step.step_id}' has invalid route target '${route.target}'`);
       }
     }
 
     for (const toolName of step.available_tools) {
       if (!this.tools.has(toolName)) {
-        throw new Error(
-          `Step '${step.step_id}' references unknown tool '${toolName}'`
-        );
+        throw new Error(`Step '${step.step_id}' references unknown tool '${toolName}'`);
       }
     }
 

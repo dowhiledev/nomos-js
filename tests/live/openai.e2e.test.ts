@@ -12,7 +12,10 @@ import fs from 'fs';
       if (m) {
         const key = m[1];
         let val = m[2];
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('\'') && val.endsWith('\''))) {
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
           val = val.slice(1, -1);
         }
         process.env[key] = process.env[key] ?? val;
@@ -21,7 +24,11 @@ import fs from 'fs';
   }
 })();
 
-const llm = new OpenAILLM({ provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY });
+const llm = new OpenAILLM({
+  provider: 'openai',
+  model: 'gpt-4o-mini',
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Simple calculator tool
 const calculatorTool = createTool(
@@ -46,7 +53,8 @@ describe('OpenAI e2e (live)', () => {
       steps: [
         {
           step_id: 'calc',
-          description: 'When the user asks to compute a math expression, always call the calculate tool with the exact expression string. Do not guess.',
+          description:
+            'When the user asks to compute a math expression, always call the calculate tool with the exact expression string. Do not guess.',
           routes: [],
           available_tools: ['calculate'],
         },
@@ -58,7 +66,9 @@ describe('OpenAI e2e (live)', () => {
       persona: 'Be precise and concise.',
     });
 
-    const res = await agent.next('Compute 7*8', undefined, true, false, true, { actions: ['TOOL_CALL'] });
+    const res = await agent.next('Compute 7*8', undefined, true, false, true, {
+      actions: ['TOOL_CALL'],
+    });
     expect(res.tool_output).toBeTruthy();
     const out = JSON.parse(String(res.tool_output));
     expect(out.result).toBe(56);
@@ -70,10 +80,9 @@ describe('OpenAI e2e (live)', () => {
       steps: [
         {
           step_id: 'classify',
-          description: 'For any input, return a JSON decision that MOVES to the end step. Do not respond with text.',
-          routes: [
-            { target: 'end', condition: 'User wants to end or says goodbye' },
-          ],
+          description:
+            'For any input, return a JSON decision that MOVES to the end step. Do not respond with text.',
+          routes: [{ target: 'end', condition: 'User wants to end or says goodbye' }],
           available_tools: [],
           examples: [
             {
@@ -111,7 +120,9 @@ describe('OpenAI e2e (live)', () => {
       llm,
     });
 
-    const res = await agent.next('Briefly define gravity.', undefined, false, false, true, { actions: ['RESPOND'] });
+    const res = await agent.next('Briefly define gravity.', undefined, false, false, true, {
+      actions: ['RESPOND'],
+    });
     expect(res.response && typeof res.response === 'string').toBeTruthy();
     expect(res.decision?.action).toBe('RESPOND');
   }, 60000);
@@ -132,7 +143,9 @@ describe('OpenAI e2e (live)', () => {
       llm,
     });
 
-    const res = await agent.next('do it', undefined, false, false, true, { actions: ['TOOL_CALL'] });
+    const res = await agent.next('do it', undefined, false, false, true, {
+      actions: ['TOOL_CALL'],
+    });
     // Our validation should detect unavailable tool and retry with RESPOND
     expect(res.decision?.action === 'RESPOND' || typeof res.response === 'string').toBeTruthy();
   }, 60000);

@@ -9,4 +9,3 @@ export interface SessionEvent {
 export interface EventEmitter {
   emit(event: SessionEvent): void | Promise<void>;
 }
-

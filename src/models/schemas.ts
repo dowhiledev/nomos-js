@@ -6,19 +6,22 @@ export type Action = z.infer<typeof ActionSchema>;
 
 // Route schema for step transitions
 // Accept "to" and "when" as aliases via preprocessing
-export const RouteSchema = z.preprocess((input) => {
-  const obj = input as any;
-  if (obj && typeof obj === 'object') {
-    return {
-      target: obj.target ?? obj.to,
-      condition: obj.condition ?? obj.when,
-    };
-  }
-  return input;
-}, z.object({
-  target: z.string(),
-  condition: z.string(),
-}));
+export const RouteSchema = z.preprocess(
+  (input) => {
+    const obj = input as any;
+    if (obj && typeof obj === 'object') {
+      return {
+        target: obj.target ?? obj.to,
+        condition: obj.condition ?? obj.when,
+      };
+    }
+    return input;
+  },
+  z.object({
+    target: z.string(),
+    condition: z.string(),
+  }),
+);
 export type Route = z.infer<typeof RouteSchema>;
 
 // Step identifier for tracking current step
@@ -43,35 +46,38 @@ export const StepOverridesSchema = z.object({
 export type StepOverrides = z.infer<typeof StepOverridesSchema>;
 
 // Main Step schema
-export const StepSchema = z.preprocess((input) => {
-  const obj = input as any;
-  if (obj && typeof obj === 'object') {
-    return {
-      step_id: obj.step_id ?? obj.id,
-      description: obj.description ?? obj.desc,
-      routes: obj.routes ?? obj.paths,
-      available_tools: obj.available_tools ?? obj.tools,
-      answer_model: obj.answer_model,
-      auto_flow: obj.auto_flow ?? false,
-      quick_suggestions: obj.quick_suggestions ?? false,
-      flow_id: obj.flow_id,
-      overrides: obj.overrides,
-      examples: obj.examples ?? obj.eg,
-    };
-  }
-  return input;
-}, z.object({
-  step_id: z.string(),
-  description: z.string(),
-  routes: z.array(RouteSchema).default([]),
-  available_tools: z.array(z.string()).default([]),
-  answer_model: z.any().optional(), // Zod schema or string reference
-  auto_flow: z.boolean().default(false),
-  quick_suggestions: z.boolean().default(false),
-  flow_id: z.string().optional(),
-  overrides: StepOverridesSchema.optional(),
-  examples: z.array(DecisionExampleSchema).optional(),
-}));
+export const StepSchema = z.preprocess(
+  (input) => {
+    const obj = input as any;
+    if (obj && typeof obj === 'object') {
+      return {
+        step_id: obj.step_id ?? obj.id,
+        description: obj.description ?? obj.desc,
+        routes: obj.routes ?? obj.paths,
+        available_tools: obj.available_tools ?? obj.tools,
+        answer_model: obj.answer_model,
+        auto_flow: obj.auto_flow ?? false,
+        quick_suggestions: obj.quick_suggestions ?? false,
+        flow_id: obj.flow_id,
+        overrides: obj.overrides,
+        examples: obj.examples ?? obj.eg,
+      };
+    }
+    return input;
+  },
+  z.object({
+    step_id: z.string(),
+    description: z.string(),
+    routes: z.array(RouteSchema).default([]),
+    available_tools: z.array(z.string()).default([]),
+    answer_model: z.any().optional(), // Zod schema or string reference
+    auto_flow: z.boolean().default(false),
+    quick_suggestions: z.boolean().default(false),
+    flow_id: z.string().optional(),
+    overrides: StepOverridesSchema.optional(),
+    examples: z.array(DecisionExampleSchema).optional(),
+  }),
+);
 export type Step = z.infer<typeof StepSchema>;
 
 // Decision schema for agent actions
@@ -109,23 +115,26 @@ export type Decision = z.infer<typeof DecisionSchema>;
 
 // Event types for session tracking
 // Event: accept either {type, content} or {type, data}
-export const EventSchema = z.preprocess((input) => {
-  const obj = input as any;
-  if (obj && typeof obj === 'object') {
-    return {
-      type: obj.type,
-      content: obj.content ?? obj.data,
-      timestamp: obj.timestamp,
-      decision: obj.decision,
-    };
-  }
-  return input;
-}, z.object({
-  type: z.string(),
-  content: z.any(),
-  timestamp: z.date().default(() => new Date()),
-  decision: DecisionSchema.optional(),
-}));
+export const EventSchema = z.preprocess(
+  (input) => {
+    const obj = input as any;
+    if (obj && typeof obj === 'object') {
+      return {
+        type: obj.type,
+        content: obj.content ?? obj.data,
+        timestamp: obj.timestamp,
+        decision: obj.decision,
+      };
+    }
+    return input;
+  },
+  z.object({
+    type: z.string(),
+    content: z.any(),
+    timestamp: z.date().default(() => new Date()),
+    decision: DecisionSchema.optional(),
+  }),
+);
 export type Event = z.infer<typeof EventSchema>;
 
 // Message types for conversation
@@ -159,7 +168,9 @@ export type FlowContext = z.infer<typeof FlowContextSchema>;
 export const FlowStateSchema = z.object({
   flow_id: z.string(),
   flow_context: FlowContextSchema,
-  flow_memory_context: z.array(z.union([MessageSchema, SummarySchema, StepIdentifierSchema, EventSchema])),
+  flow_memory_context: z.array(
+    z.union([MessageSchema, SummarySchema, StepIdentifierSchema, EventSchema]),
+  ),
 });
 export type FlowState = z.infer<typeof FlowStateSchema>;
 
@@ -183,35 +194,38 @@ export type Response = z.infer<typeof ResponseSchema>;
 
 // Flow configuration
 // Closer to Python's FlowConfig; keep TS variant optional fields
-export const FlowConfigSchema = z.preprocess((input) => {
-  const obj = input as any;
-  if (obj && typeof obj === 'object') {
-    return {
-      flow_id: obj.flow_id ?? obj.id,
-      name: obj.name,
-      description: obj.description ?? obj.desc,
-      steps: obj.steps, // TS variant
-      enters: obj.enters,
-      exits: obj.exits,
-      start_step_id: obj.start_step_id,
-      variables: obj.variables,
-      components: obj.components,
-    };
-  }
-  return input;
-}, z.object({
-  flow_id: z.string(),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  // TS simple flow config (optional)
-  steps: z.array(z.string()).optional(),
-  start_step_id: z.string().optional(),
-  // Python flow config (optional)
-  enters: z.array(z.string()).optional(),
-  exits: z.array(z.string()).optional(),
-  variables: z.record(z.any()).default({}),
-  components: z.record(z.record(z.any())).optional(),
-}));
+export const FlowConfigSchema = z.preprocess(
+  (input) => {
+    const obj = input as any;
+    if (obj && typeof obj === 'object') {
+      return {
+        flow_id: obj.flow_id ?? obj.id,
+        name: obj.name,
+        description: obj.description ?? obj.desc,
+        steps: obj.steps, // TS variant
+        enters: obj.enters,
+        exits: obj.exits,
+        start_step_id: obj.start_step_id,
+        variables: obj.variables,
+        components: obj.components,
+      };
+    }
+    return input;
+  },
+  z.object({
+    flow_id: z.string(),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    // TS simple flow config (optional)
+    steps: z.array(z.string()).optional(),
+    start_step_id: z.string().optional(),
+    // Python flow config (optional)
+    enters: z.array(z.string()).optional(),
+    exits: z.array(z.string()).optional(),
+    variables: z.record(z.any()).default({}),
+    components: z.record(z.record(z.any())).optional(),
+  }),
+);
 export type FlowConfig = z.infer<typeof FlowConfigSchema>;
 
 // Flow definition
@@ -222,38 +236,44 @@ export const FlowSchema = z.object({
 export type Flow = z.infer<typeof FlowSchema>;
 
 // Agent configuration
-export const AgentConfigSchema = z.object({
-  name: z.string(),
-  steps: z.array(StepSchema),
-  start_step_id: z.string(),
-  system_message: z.string().optional(),
-  persona: z.string().optional(),
-  show_steps_desc: z.boolean().default(false),
-  max_errors: z.number().default(3),
-  max_iter: z.number().default(5),
-  flows: z.array(FlowSchema).optional(),
-  tools: z.any().optional(), // Tool configuration
-  llm: z.any().optional(), // LLM configuration
-  embedding_model: z.any().optional(), // Embedding model config
-  // Optional future: logging, memory configuration passthroughs
-  logging: z.any().optional(),
-  memory: z.any().optional(),
-}).strict();
+export const AgentConfigSchema = z
+  .object({
+    name: z.string(),
+    steps: z.array(StepSchema),
+    start_step_id: z.string(),
+    system_message: z.string().optional(),
+    persona: z.string().optional(),
+    show_steps_desc: z.boolean().default(false),
+    max_errors: z.number().default(3),
+    max_iter: z.number().default(5),
+    flows: z.array(FlowSchema).optional(),
+    tools: z.any().optional(), // Tool configuration
+    llm: z.any().optional(), // LLM configuration
+    embedding_model: z.any().optional(), // Embedding model config
+    // Optional future: logging, memory configuration passthroughs
+    logging: z.any().optional(),
+    memory: z.any().optional(),
+  })
+  .strict();
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
 // Decision constraints for structured retries
 export const DecisionConstraintsSchema = z.object({
   actions: z.array(ActionSchema).optional(),
-  fields: z.array(z.enum([
-    'response',
-    'target',
-    'step_id',
-    'tool_name',
-    'tool_args',
-    'tool_call',
-    'suggestions',
-    'reasoning',
-  ])).optional(),
+  fields: z
+    .array(
+      z.enum([
+        'response',
+        'target',
+        'step_id',
+        'tool_name',
+        'tool_args',
+        'tool_call',
+        'suggestions',
+        'reasoning',
+      ]),
+    )
+    .optional(),
   tool_name: z.string().optional(),
   required_args: z.array(z.string()).optional(),
 });

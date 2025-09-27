@@ -54,4 +54,3 @@ export function tryNormalizeRoute(input: unknown): [Route | null, Error | null] 
     return [null, e as Error];
   }
 }
-

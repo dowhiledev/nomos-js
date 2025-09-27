@@ -9,12 +9,26 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
     const { userInput, state, returnTool, returnStep, verbose, constraints } = reqBody || {};
     let currentState = state;
     let turns = 0;
-    let out = await agent.next(userInput, currentState, !!returnTool, !!returnStep, !!verbose, constraints);
+    let out = await agent.next(
+      userInput,
+      currentState,
+      !!returnTool,
+      !!returnStep,
+      !!verbose,
+      constraints,
+    );
     // Auto-chain when no assistant text was produced (TOOL_CALL/MOVE follow-ups)
     while (!out.response && turns < 3) {
       turns++;
       currentState = out.state;
-      out = await agent.next(undefined, currentState, !!returnTool, !!returnStep, !!verbose, constraints);
+      out = await agent.next(
+        undefined,
+        currentState,
+        !!returnTool,
+        !!returnStep,
+        !!verbose,
+        constraints,
+      );
     }
     return out;
   }
@@ -40,15 +54,32 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
         if (preambleFlushed) return;
         // Action after any already-emitted reasoning
         if (pendingAction) onEvent({ type: 'partial', action: pendingAction });
-        for (const t of pendingTools) onEvent({ type: 'partial', tool_call: { tool_name: t.tool_name, tool_args: t.tool_args || {} } });
+        for (const t of pendingTools)
+          onEvent({
+            type: 'partial',
+            tool_call: { tool_name: t.tool_name, tool_args: t.tool_args || {} },
+          });
         preambleFlushed = true;
-        if (bufferedResponse) { onEvent({ type: 'partial', response_chunk: bufferedResponse }); bufferedResponse = ''; }
+        if (bufferedResponse) {
+          onEvent({ type: 'partial', response_chunk: bufferedResponse });
+          bufferedResponse = '';
+        }
       }
 
-      for await (const upd of agent.streamNext(input, lastState, !!returnTool, !!returnStep, !!verbose, constraints)) {
+      for await (const upd of agent.streamNext(
+        input,
+        lastState,
+        !!returnTool,
+        !!returnStep,
+        !!verbose,
+        constraints,
+      )) {
         if (!responseStarted && upd.decision && Array.isArray((upd.decision as any).reasoning)) {
           for (const r of (upd.decision as any).reasoning as string[]) {
-            if (r && r.trim() && !printedWhy.has(r)) { printedWhy.add(r); onEvent({ type: 'partial', why: r }); }
+            if (r && r.trim() && !printedWhy.has(r)) {
+              printedWhy.add(r);
+              onEvent({ type: 'partial', why: r });
+            }
           }
         }
         if (upd.decision && (upd.decision as any).action) {
@@ -60,11 +91,16 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
           const tc = (upd as any).tool_call;
           const tool_args = (tc.tool_args ?? tc.tool_kwargs) || {};
           const key = `${tc.tool_name}:${JSON.stringify(tool_args)}`;
-          if (!pendingTools.find(t => `${t.tool_name}:${JSON.stringify(t.tool_args||{})}` === key)) {
+          if (
+            !pendingTools.find((t) => `${t.tool_name}:${JSON.stringify(t.tool_args || {})}` === key)
+          ) {
             pendingTools.push({ tool_name: tc.tool_name, tool_args });
           }
         }
-        if (typeof (upd as any).response_chunk === 'string' && (upd as any).response_chunk.length > 0) {
+        if (
+          typeof (upd as any).response_chunk === 'string' &&
+          (upd as any).response_chunk.length > 0
+        ) {
           hadAnyChunk = true;
           // First time we see response, flush preamble and stop emitting further why/tool
           if (!responseStarted) {
@@ -81,10 +117,18 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
           // Flush preamble (action + tools) before final
           flushPreambleIfNeeded();
           lastState = (upd as any).response.state;
-          onEvent({ type: 'final', response: (upd as any).response.response || '', state: lastState });
+          onEvent({
+            type: 'final',
+            response: (upd as any).response.response || '',
+            state: lastState,
+          });
         }
         // If we have buffered response and at least one reasoning line has been printed, we can flush preamble now
-        if (!preambleFlushed && (printedWhy.size > 0 || pendingAction || pendingTools.length > 0) && bufferedResponse) {
+        if (
+          !preambleFlushed &&
+          (printedWhy.size > 0 || pendingAction || pendingTools.length > 0) &&
+          bufferedResponse
+        ) {
           flushPreambleIfNeeded();
         }
       }

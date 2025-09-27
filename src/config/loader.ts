@@ -58,7 +58,10 @@ export function toAgentConfig(raw: RawConfig): AgentConfig {
           steps: f.steps,
           components: f.components,
         });
-        return FlowSchema.parse({ config: cfg, steps: (f.steps_list || f.steps || []).map((s: any) => StepSchema.parse(s)) });
+        return FlowSchema.parse({
+          config: cfg,
+          steps: (f.steps_list || f.steps || []).map((s: any) => StepSchema.parse(s)),
+        });
       })
     : undefined;
 
@@ -76,9 +79,12 @@ export function toAgentConfig(raw: RawConfig): AgentConfig {
   return cfg;
 }
 
-export function createAgentFromConfig(rawOrPath: RawConfig | string, llm: LLMBase, tools: Tool[] = []): Agent {
+export function createAgentFromConfig(
+  rawOrPath: RawConfig | string,
+  llm: LLMBase,
+  tools: Tool[] = [],
+): Agent {
   const raw = typeof rawOrPath === 'string' ? loadFileSync(rawOrPath) : rawOrPath;
   const cfg = toAgentConfig(raw);
   return Agent.fromConfig(cfg, llm, tools);
 }
-

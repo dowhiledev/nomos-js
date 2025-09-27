@@ -13,7 +13,11 @@ try {
       if (m) {
         const key = m[1];
         let val = m[2];
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('\'') && val.endsWith('\''))) val = val.slice(1, -1);
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        )
+          val = val.slice(1, -1);
         process.env[key] = process.env[key] ?? val;
       }
     }
@@ -21,7 +25,11 @@ try {
 } catch {}
 
 async function main() {
-  const llm = new OpenAILLM({ provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY });
+  const llm = new OpenAILLM({
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   // === Barista tools (mocked behavior) ===
   const getAvailableCoffeeOptions = createTool(
@@ -30,49 +38,63 @@ async function main() {
     z.object({}).optional().default(z.object({}).parse({})),
     async () => ({
       options: [
-        { coffee_type: 'Espresso', sizes: ['Small', 'Medium', 'Large'], price: { Small: 3.0, Medium: 3.5, Large: 4.0 } },
-        { coffee_type: 'Latte', sizes: ['Small', 'Medium', 'Large'], price: { Small: 4.0, Medium: 4.5, Large: 5.0 } },
-        { coffee_type: 'Cappuccino', sizes: ['Small', 'Medium', 'Large'], price: { Small: 4.0, Medium: 4.5, Large: 5.0 } },
+        {
+          coffee_type: 'Espresso',
+          sizes: ['Small', 'Medium', 'Large'],
+          price: { Small: 3.0, Medium: 3.5, Large: 4.0 },
+        },
+        {
+          coffee_type: 'Latte',
+          sizes: ['Small', 'Medium', 'Large'],
+          price: { Small: 4.0, Medium: 4.5, Large: 5.0 },
+        },
+        {
+          coffee_type: 'Cappuccino',
+          sizes: ['Small', 'Medium', 'Large'],
+          price: { Small: 4.0, Medium: 4.5, Large: 5.0 },
+        },
       ],
-    })
+    }),
   );
 
   const addToCart = createTool(
     'add_to_cart',
     'Add a coffee item to the cart. Args: coffee_type, size, price',
     z.object({ coffee_type: z.string(), size: z.string(), price: z.number().optional() }),
-    async ({ coffee_type, size, price }) => ({ message: `Added ${size} ${coffee_type} ${price ? `($${price.toFixed(2)})` : ''} to cart.`.trim() })
+    async ({ coffee_type, size, price }) => ({
+      message:
+        `Added ${size} ${coffee_type} ${price ? `($${price.toFixed(2)})` : ''} to cart.`.trim(),
+    }),
   );
 
   const removeItem = createTool(
     'remove_item',
     'Remove an item from cart by item_id',
     z.object({ item_id: z.string() }),
-    async ({ item_id }) => ({ message: `Removed item ${item_id} from cart.` })
+    async ({ item_id }) => ({ message: `Removed item ${item_id} from cart.` }),
   );
 
-  const clearCart = createTool(
-    'clear_cart',
-    'Clear the shopping cart',
-    z.object({}),
-    async () => ({ message: 'Cart cleared.' })
-  );
+  const clearCart = createTool('clear_cart', 'Clear the shopping cart', z.object({}), async () => ({
+    message: 'Cart cleared.',
+  }));
 
   const getOrderSummary = createTool(
     'get_order_summary',
     'Get current order summary with total price',
     z.object({}),
     async () => ({
-      summary: [ '1x Latte (Medium) - $4.50', '1x Espresso (Small) - $3.00' ],
+      summary: ['1x Latte (Medium) - $4.50', '1x Espresso (Small) - $3.00'],
       total: 7.5,
-    })
+    }),
   );
 
   const finalizeOrder = createTool(
     'finalize_order',
     'Finalize the order. Args: payment_method (Card or Cash), payment (number, if Cash)',
     z.object({ payment_method: z.enum(['Card', 'Cash']), payment: z.number().optional() }),
-    async ({ payment_method, payment }) => ({ message: `Order finalized with ${payment_method}${payment_method === 'Cash' && payment ? ` ($${payment.toFixed(2)})` : ''}. Thank you!` })
+    async ({ payment_method, payment }) => ({
+      message: `Order finalized with ${payment_method}${payment_method === 'Cash' && payment ? ` ($${payment.toFixed(2)})` : ''}. Thank you!`,
+    }),
   );
 
   // === Barista steps and flows (aligned with cookbook YAML) ===
@@ -80,11 +102,20 @@ async function main() {
     {
       step_id: 'start',
       description:
-        "Greet the customer and ask how can I help them. Use get_available_coffee_options when needed; recommend options. When ready to order, MOVE to take_coffee_order.",
+        'Greet the customer and ask how can I help them. Use get_available_coffee_options when needed; recommend options. When ready to order, MOVE to take_coffee_order.',
       available_tools: ['get_available_coffee_options'],
-      routes: [ { target: 'take_coffee_order', condition: 'Customer is ready to place a new order' } ],
+      routes: [
+        { target: 'take_coffee_order', condition: 'Customer is ready to place a new order' },
+      ],
       examples: [
-        { context: 'Customer asked for coffee options', decision: { action: 'TOOL_CALL', tool_call: { tool_name: 'get_available_coffee_options', tool_kwargs: {} } }, visibility: 'always' as const },
+        {
+          context: 'Customer asked for coffee options',
+          decision: {
+            action: 'TOOL_CALL',
+            tool_call: { tool_name: 'get_available_coffee_options', tool_kwargs: {} },
+          },
+          visibility: 'always' as const,
+        },
       ],
     },
     {
@@ -105,10 +136,18 @@ async function main() {
       available_tools: ['get_order_summary', 'finalize_order'],
       routes: [
         { target: 'end', condition: 'Order is finalized or canceled' },
-        { target: 'take_coffee_order', condition: 'Customer wants to change the order or add more items or start over' },
+        {
+          target: 'take_coffee_order',
+          condition: 'Customer wants to change the order or add more items or start over',
+        },
       ],
     },
-    { step_id: 'end', description: 'Clear the cart and end the conversation graciously.', available_tools: ['clear_cart'], routes: [] },
+    {
+      step_id: 'end',
+      description: 'Clear the cart and end the conversation graciously.',
+      available_tools: ['clear_cart'],
+      routes: [],
+    },
   ];
 
   const flows = [
@@ -125,7 +164,10 @@ async function main() {
 
   // Event log collector + simple per-session cart store
   const events: Array<{ ts: string; type: string; data?: any; sid?: string }> = [];
-  const carts = new Map<string, Array<{ item_id: string; coffee_type: string; size: string; price?: number }>>();
+  const carts = new Map<
+    string,
+    Array<{ item_id: string; coffee_type: string; size: string; price?: number }>
+  >();
   let nextItemId = 1;
   const emitter: EventEmitter = {
     emit(evt: SessionEvent) {
@@ -147,7 +189,7 @@ async function main() {
             carts.set(evt.sessionId, cart);
           } else if (name === 'remove_item') {
             const id = String(args.item_id || '');
-            const updated = cart.filter(i => i.item_id !== id);
+            const updated = cart.filter((i) => i.item_id !== id);
             carts.set(evt.sessionId, updated);
           } else if (name === 'clear_cart') {
             carts.set(evt.sessionId, []);
@@ -166,7 +208,14 @@ async function main() {
     steps,
     flows,
     startStepId: 'start',
-    tools: [getAvailableCoffeeOptions, addToCart, removeItem, clearCart, getOrderSummary, finalizeOrder],
+    tools: [
+      getAvailableCoffeeOptions,
+      addToCart,
+      removeItem,
+      clearCart,
+      getOrderSummary,
+      finalizeOrder,
+    ],
     llm,
     eventEmitter: emitter as any,
   });
@@ -174,9 +223,11 @@ async function main() {
   let state: any = undefined;
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  console.log("Barista interactive demo. Type your message (or :events, :state, :cart, :reset, :help). Ctrl+C to exit.");
+  console.log(
+    'Barista interactive demo. Type your message (or :events, :state, :cart, :reset, :help). Ctrl+C to exit.',
+  );
 
-  const ask = () => new Promise<string>(resolve => rl.question('You: ', resolve));
+  const ask = () => new Promise<string>((resolve) => rl.question('You: ', resolve));
 
   function printState(s: any) {
     console.log('State:');
@@ -187,7 +238,15 @@ async function main() {
     }
     const cart = carts.get(s.session_id) || [];
     if (cart.length) {
-      console.log('  cart:', cart.map(i => `${i.item_id}:${i.size} ${i.coffee_type}${i.price ? ` $${i.price.toFixed(2)}` : ''}`).join(', '));
+      console.log(
+        '  cart:',
+        cart
+          .map(
+            (i) =>
+              `${i.item_id}:${i.size} ${i.coffee_type}${i.price ? ` $${i.price.toFixed(2)}` : ''}`,
+          )
+          .join(', '),
+      );
     } else {
       console.log('  cart: (empty)');
     }
@@ -204,7 +263,12 @@ async function main() {
   function printNewEventsInline() {
     const fresh = events.slice(lastPrinted);
     for (const e of fresh) {
-      if (e.type === 'step_move' || e.type === 'tool_called' || e.type === 'flow_enter' || e.type === 'flow_exit') {
+      if (
+        e.type === 'step_move' ||
+        e.type === 'tool_called' ||
+        e.type === 'flow_enter' ||
+        e.type === 'flow_exit'
+      ) {
         console.log(`  ↳ ${e.ts} – ${e.type} ${e.data ? JSON.stringify(e.data) : ''}`);
       }
     }
@@ -221,10 +285,29 @@ async function main() {
       console.log('  <text>   – send user message');
       continue;
     }
-    if (input === ':events') { printEvents(); continue; }
-    if (input === ':state') { if (state) printState(state); else console.log('No state yet.'); continue; }
-    if (input === ':cart') { if (state) { const cart = carts.get(state.session_id) || []; console.log('Cart:', cart); } else console.log('No state yet.'); continue; }
-    if (input === ':reset') { state = undefined; events.length = 0; carts.clear(); console.log('State and events cleared.'); continue; }
+    if (input === ':events') {
+      printEvents();
+      continue;
+    }
+    if (input === ':state') {
+      if (state) printState(state);
+      else console.log('No state yet.');
+      continue;
+    }
+    if (input === ':cart') {
+      if (state) {
+        const cart = carts.get(state.session_id) || [];
+        console.log('Cart:', cart);
+      } else console.log('No state yet.');
+      continue;
+    }
+    if (input === ':reset') {
+      state = undefined;
+      events.length = 0;
+      carts.clear();
+      console.log('State and events cleared.');
+      continue;
+    }
 
     let res = await agent.next(input, state, true, false, true);
     state = res.state;
@@ -232,7 +315,11 @@ async function main() {
 
     // Auto-advance on TOOL_CALL or MOVE by sending undefined
     let safety = 0;
-    while (res.decision && (res.decision.action === 'TOOL_CALL' || res.decision.action === 'MOVE') && safety < 5) {
+    while (
+      res.decision &&
+      (res.decision.action === 'TOOL_CALL' || res.decision.action === 'MOVE') &&
+      safety < 5
+    ) {
       res = await agent.next(undefined, state, true, false, true);
       state = res.state;
       if (res.response) console.log('Assistant:', res.response);

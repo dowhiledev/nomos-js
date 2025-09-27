@@ -12,7 +12,13 @@ export interface NextRequestBody {
 export type NextResponseBody = Response;
 
 export type StreamEvent =
-  | { type: 'partial'; action?: string; why?: string; response_chunk?: string; tool_call?: { tool_name: string; tool_args: Record<string, any> } }
+  | {
+      type: 'partial';
+      action?: string;
+      why?: string;
+      response_chunk?: string;
+      tool_call?: { tool_name: string; tool_args: Record<string, any> };
+    }
   | { type: 'final'; response: string; state: State; events?: any[] };
 
 export interface AgentServerOptions {
@@ -20,4 +26,3 @@ export interface AgentServerOptions {
   streamContentType?: 'application/x-ndjson' | 'text/event-stream';
   cors?: { origin?: string; allowHeaders?: string[]; allowMethods?: string[] };
 }
-

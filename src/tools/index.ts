@@ -28,7 +28,7 @@ export class FunctionTool implements Tool {
     name: string,
     description: string,
     parameters: z.ZodSchema,
-    fn: (...args: any[]) => any
+    fn: (...args: any[]) => any,
   ) {
     this.name = name;
     this.description = description;
@@ -75,7 +75,7 @@ export class HTTPTool implements Tool {
       url: string;
       method?: string;
       headers?: Record<string, string>;
-    }
+    },
   ) {
     this.name = name;
     this.description = description;
@@ -149,7 +149,7 @@ export function createTool(
   name: string,
   description: string,
   parameters: z.ZodSchema,
-  fn: (...args: any[]) => any
+  fn: (...args: any[]) => any,
 ): Tool {
   return new FunctionTool(name, description, parameters, fn);
 }
@@ -163,7 +163,7 @@ export function createHTTPTool(
     url: string;
     method?: string;
     headers?: Record<string, string>;
-  }
+  },
 ): Tool {
   return new HTTPTool(name, description, parameters, config);
 }

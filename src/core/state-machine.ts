@@ -28,12 +28,13 @@ export class StateMachine {
     }
     for (const f of this.flows || []) {
       this.flowConfig.set(f.config.flow_id, f.config);
-      for (const sid of (f.config.steps || [])) {
+      for (const sid of f.config.steps || []) {
         this.stepToFlow.set(sid, f.config.flow_id);
       }
     }
     this._currentStepId = config.startStepId;
-    this._currentFlowId = this.stepToFlow.get(this._currentStepId) || this.steps.get(this._currentStepId)?.flow_id;
+    this._currentFlowId =
+      this.stepToFlow.get(this._currentStepId) || this.steps.get(this._currentStepId)?.flow_id;
     // Basic route validation
     for (const step of this.steps.values()) {
       for (const r of step.routes) {
@@ -58,14 +59,18 @@ export class StateMachine {
       if (nextFlow) {
         const fc = this.flowConfig.get(nextFlow);
         if (fc?.enters && fc.enters.length > 0 && !fc.enters.includes(id)) {
-          throw new Error(`Cannot enter flow '${nextFlow}' at step '${id}'. Allowed entries: ${fc.enters.join(', ')}`);
+          throw new Error(
+            `Cannot enter flow '${nextFlow}' at step '${id}'. Allowed entries: ${fc.enters.join(', ')}`,
+          );
         }
       }
       if (prevFlow) {
         const pc = this.flowConfig.get(prevFlow);
         // Exits list denotes target steps that mark a valid exit
         if (pc?.exits && pc.exits.length > 0 && !pc.exits.includes(id)) {
-          throw new Error(`Cannot exit flow '${prevFlow}' to step '${id}'. Allowed exits: ${pc.exits.join(', ')}`);
+          throw new Error(
+            `Cannot exit flow '${prevFlow}' to step '${id}'. Allowed exits: ${pc.exits.join(', ')}`,
+          );
         }
       }
     }
@@ -87,7 +92,7 @@ export class StateMachine {
 
   hasRouteTo(target: string): boolean {
     const s = this.currentStep;
-    return s.routes.some(r => r.target === target);
+    return s.routes.some((r) => r.target === target);
   }
 
   get currentFlowId(): string | undefined {
@@ -114,7 +119,8 @@ export class StateMachine {
     if (!this.steps.has(stepId)) throw new Error(`Step '${stepId}' not found`);
     this._prevStepId = undefined;
     this._currentStepId = stepId;
-    this._currentFlowId = flowId ?? (this.stepToFlow.get(stepId) || this.steps.get(stepId)?.flow_id);
+    this._currentFlowId =
+      flowId ?? (this.stepToFlow.get(stepId) || this.steps.get(stepId)?.flow_id);
     this._lastFlowTransition = undefined;
   }
 }

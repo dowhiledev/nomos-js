@@ -37,7 +37,7 @@ const calculator = createTool(
   'calculate',
   'Perform calculations',
   z.object({ expression: z.string() }),
-  async ({ expression }) => eval(expression)
+  async ({ expression }) => eval(expression),
 );
 
 // 3. Define agent steps
@@ -127,7 +127,7 @@ const searchTool = createTool(
   async ({ query }) => {
     // Implementation
     return { results: [] };
-  }
+  },
 );
 
 // HTTP API tool
@@ -138,7 +138,7 @@ const weatherTool = createHTTPTool(
   {
     url: 'https://api.weather.com',
     method: 'GET',
-  }
+  },
 );
 ```
 
@@ -183,7 +183,9 @@ const flows = [
       steps: ['welcome', 'collect_info', 'setup'],
       start_step_id: 'welcome',
     },
-    steps: [/* step definitions */],
+    steps: [
+      /* step definitions */
+    ],
   },
 ];
 
@@ -211,7 +213,9 @@ const step = {
       decision: { action: 'RESPOND', response: 'Why did the chicken cross the road?' },
     },
   ],
-  routes: [/* routes */],
+  routes: [
+    /* routes */
+  ],
 };
 ```
 
