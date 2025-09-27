@@ -172,3 +172,17 @@ export class LocalStorageAdapter implements MemoryAdapter {
     return raw ? JSON.parse(raw) : [];
   }
 }
+
+export class LocalStorageStateAdapter implements StateAdapter {
+  private prefix: string;
+  constructor(prefix: string = 'nomos:state:') { this.prefix = prefix; }
+  async saveState(sessionId: string, state: State): Promise<void> {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(this.prefix + sessionId, JSON.stringify(state));
+  }
+  async loadState(sessionId: string): Promise<State | null> {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(this.prefix + sessionId);
+    return raw ? JSON.parse(raw) as State : null;
+  }
+}

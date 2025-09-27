@@ -34,7 +34,7 @@
   - Simple summarization hook (pluggable, optional) and size limits.
 - Persistence strategies: JSON‑serializable state for Node (fs optional), Browser (localStorage), Edge (KV adapter stub). Avoid Node‑only APIs in core paths.
 - Deliverables: `src/memory/*`, interfaces, default impl, tests.
-  - Status: In progress — Added `Memory` with in‑memory adapter, basic summarization, and Session integration. Persistence adapters added (FsAdapter, LocalStorageAdapter), plus full State persistence via `FsStateAdapter`. Flow‑scoped memory store implemented; FlowContext details added to state.
+  - Status: Completed — `Memory` with in‑memory adapter, summarization, and Session integration. Persistence adapters: `FsAdapter`, `LocalStorageAdapter`. Full state persistence via `FsStateAdapter` and `LocalStorageStateAdapter`. Flow‑scoped memory implemented; FlowContext (entry_step, current_step_id, variables, metadata, previous_context) included in state.
 
 **Phase 4 — State Machine & Flows**
 - Port state machine that compiles steps, validates routes/tools, and manages flow context:
@@ -43,7 +43,7 @@
   - ~~Validation on init: start step, route targets, tools availability.~~
 - Mermaid graph generation utility (string output) for visualization; optional CLI to render.
 - Deliverables: `src/core/state-machine.ts`, flow utils, validation tests, visualization util.
-  - Status: In progress — Added `StateMachine` for step management and route validation; integrated into Session for current step tracking and transitions. Basic flow runtime added (flow_id tracking, enter/exit detection), flow memory/events wired.
+  - Status: Completed — `StateMachine` manages steps + routes and validates flow enters/exits based on FlowConfig (enters/exits). Integrated with Session for transitions. Basic flow runtime with flow_id tracking, enter/exit detection, flow memory/events, and FlowContext exposure.
 
 **Phase 5 — Tools System Parity**
 - Extend current tools to parity:

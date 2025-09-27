@@ -184,6 +184,16 @@ export class Agent {
     return this.createSession({ session_id: sessionId, current_step_id: currentStepId, history });
   }
 
+  async saveState(state: State): Promise<void> {
+    if (!(this as any).stateAdapter) throw new Error('No stateAdapter configured on Agent.');
+    await (this as any).stateAdapter.saveState(state.session_id, state);
+  }
+
+  async loadState(sessionId: string): Promise<State | null> {
+    if (!(this as any).stateAdapter) throw new Error('No stateAdapter configured on Agent.');
+    return (this as any).stateAdapter.loadState(sessionId);
+  }
+
   // Get agent configuration
   getConfig(): AgentConfig {
     return {

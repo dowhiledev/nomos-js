@@ -12,6 +12,9 @@ export class StateMachine {
   private _currentStepId: string;
   private _currentFlowId?: string;
   private _lastFlowTransition?: { from?: string; to?: string };
+  private stepToFlow = new Map<string, string | undefined>();
+  private flowConfig = new Map<string, Flow['config']>();
+  private _prevStepId?: string;
 
   constructor(config: StateMachineConfig) {
     this.steps = config.steps;
@@ -19,8 +22,18 @@ export class StateMachine {
     if (!this.steps.has(config.startStepId)) {
       throw new Error(`Start step '${config.startStepId}' not found`);
     }
+    // Build flow maps
+    for (const [, step] of this.steps) {
+      if (step.flow_id) this.stepToFlow.set(step.step_id, step.flow_id);
+    }
+    for (const f of this.flows || []) {
+      this.flowConfig.set(f.config.flow_id, f.config);
+      for (const sid of (f.config.steps || [])) {
+        this.stepToFlow.set(sid, f.config.flow_id);
+      }
+    }
     this._currentStepId = config.startStepId;
-    this._currentFlowId = this.steps.get(this._currentStepId)?.flow_id;
+    this._currentFlowId = this.stepToFlow.get(this._currentStepId) || this.steps.get(this._currentStepId)?.flow_id;
     // Basic route validation
     for (const step of this.steps.values()) {
       for (const r of step.routes) {
@@ -38,8 +51,25 @@ export class StateMachine {
   set currentStepId(id: string) {
     if (!this.steps.has(id)) throw new Error(`Step '${id}' not found`);
     const prevFlow = this._currentFlowId;
-    const nextFlow = this.steps.get(id)?.flow_id;
+    const prevStep = this._currentStepId;
+    const nextFlow = this.stepToFlow.get(id) || this.steps.get(id)?.flow_id;
+    // Validate flow entry/exit against flow configs if present
+    if (prevFlow !== nextFlow) {
+      if (nextFlow) {
+        const fc = this.flowConfig.get(nextFlow);
+        if (fc?.enters && fc.enters.length > 0 && !fc.enters.includes(id)) {
+          throw new Error(`Cannot enter flow '${nextFlow}' at step '${id}'. Allowed entries: ${fc.enters.join(', ')}`);
+        }
+      }
+      if (prevFlow) {
+        const pc = this.flowConfig.get(prevFlow);
+        if (pc?.exits && pc.exits.length > 0 && !pc.exits.includes(prevStep)) {
+          throw new Error(`Cannot exit flow '${prevFlow}' from step '${prevStep}'. Allowed exits: ${pc.exits.join(', ')}`);
+        }
+      }
+    }
     // update ids
+    this._prevStepId = this._currentStepId;
     this._currentStepId = id;
     this._currentFlowId = nextFlow;
     if (prevFlow !== nextFlow) {
