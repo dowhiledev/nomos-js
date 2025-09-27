@@ -14,7 +14,7 @@ A TypeScript port of the NOMOS agent framework for building advanced LLM-powered
 ## Installation
 
 ```bash
-npm install nomos-ts ai zod uuid
+npm install nomos-js ai zod uuid
 # Plus your preferred LLM provider
 npm install @ai-sdk/openai @ai-sdk/anthropic
 ```
@@ -22,7 +22,7 @@ npm install @ai-sdk/openai @ai-sdk/anthropic
 ## Quick Start
 
 ```typescript
-import { Agent, OpenAILLM, createTool } from 'nomos-ts';
+import { Agent, OpenAILLM, createTool } from 'nomos-js';
 import { z } from 'zod';
 
 // 1. Configure LLM
@@ -163,7 +163,7 @@ const state = session.getState(); // For persistence
 ### Custom LLM Providers
 
 ```typescript
-import { AnthropicLLM } from 'nomos-ts';
+import { AnthropicLLM } from 'nomos-js';
 
 const llm = new AnthropicLLM({
   provider: 'anthropic',
@@ -235,7 +235,7 @@ You can define agents declaratively:
 
 ```typescript
 import fs from 'fs';
-import { Agent } from 'nomos-ts';
+import { Agent } from 'nomos-js';
 
 const config = JSON.parse(fs.readFileSync('agent-config.json', 'utf8'));
 const agent = Agent.fromConfig(config, llm, tools);

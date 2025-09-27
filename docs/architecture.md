@@ -3,7 +3,7 @@
 - Edge/Browser (client): fetch-only, no Node APIs, JSON state persistence; tools must be network or pure functions.
 
 **Packages & Exports**
-- Single package `nomos-ts` (ESM) with optional peer deps for providers.
+- Single package `nomos-js` (ESM) with optional peer deps for providers.
 - Public API: `Agent`, `Session`, models/schemas, tools helpers, LLM factory/wrappers.
 
 **Runtime Boundaries**
@@ -24,4 +24,3 @@
 - Tools: `createTool`, `createHTTPTool`, `toolRegistry`.
 - Models: Zod schemas for config/state/decision.
 - LLMs: `createLLM(config)` and concrete wrappers.
-
