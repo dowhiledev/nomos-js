@@ -11,6 +11,7 @@ export class StateMachine {
   private flows?: Flow[];
   private _currentStepId: string;
   private _currentFlowId?: string;
+  private _lastFlowTransition?: { from?: string; to?: string };
 
   constructor(config: StateMachineConfig) {
     this.steps = config.steps;
@@ -41,6 +42,9 @@ export class StateMachine {
     // update ids
     this._currentStepId = id;
     this._currentFlowId = nextFlow;
+    if (prevFlow !== nextFlow) {
+      this._lastFlowTransition = { from: prevFlow, to: nextFlow };
+    }
     // flow transitions can be observed by caller via getters
   }
 
@@ -66,5 +70,11 @@ export class StateMachine {
 
   exitFlow() {
     this._currentFlowId = undefined;
+  }
+
+  consumeFlowTransition(): { from?: string; to?: string } | undefined {
+    const t = this._lastFlowTransition;
+    this._lastFlowTransition = undefined;
+    return t;
   }
 }

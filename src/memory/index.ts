@@ -21,6 +21,7 @@ export class Memory {
   private items: MemoryItem[] = [];
   private adapter?: MemoryAdapter;
   private summarizeEvery: number;
+  private flowStore: Map<string, MemoryItem[]> = new Map();
 
   constructor(initial?: MemoryItem[], opts?: { adapter?: MemoryAdapter; summarizeEvery?: number }) {
     if (initial && initial.length) this.items = [...initial];
@@ -53,6 +54,22 @@ export class Memory {
 
   getHistory(): MemoryItem[] {
     return this.items;
+  }
+
+  addFlowEvent(flowId: string, type: string, content: string, decision?: any) {
+    const list = this.flowStore.get(flowId) || [];
+    list.push({ type, content, decision, timestamp: new Date() } as Event);
+    this.flowStore.set(flowId, list);
+  }
+
+  addFlowStep(flowId: string, step_id: string) {
+    const list = this.flowStore.get(flowId) || [];
+    list.push({ step_id } as StepIdentifier);
+    this.flowStore.set(flowId, list);
+  }
+
+  getFlowHistory(flowId: string): MemoryItem[] {
+    return this.flowStore.get(flowId) || [];
   }
 
   async persist(sessionId: string) {

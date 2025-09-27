@@ -11,6 +11,7 @@ import type { LLMBase } from '../llms';
 import type { DecisionConstraints } from '../models/schemas';
 import type { Tool } from '../tools';
 import { Session } from './session';
+import type { MemoryAdapter } from '../memory';
 
 // Agent configuration
 export interface AgentOptions {
@@ -26,6 +27,8 @@ export interface AgentOptions {
   maxIter?: number;
   llm: LLMBase;
   embeddingModel?: LLMBase;
+  memoryAdapter?: MemoryAdapter;
+  summarizeEvery?: number;
 }
 
 // Main Agent class
@@ -42,6 +45,8 @@ export class Agent {
   private maxIter: number;
   private llm: LLMBase;
   private embeddingModel: LLMBase;
+  private memoryAdapter?: MemoryAdapter;
+  private summarizeEvery?: number;
 
   constructor(options: AgentOptions) {
     this.name = options.name;
@@ -58,6 +63,8 @@ export class Agent {
     this.maxIter = options.maxIter || 5;
     this.llm = options.llm;
     this.embeddingModel = options.embeddingModel || options.llm;
+    this.memoryAdapter = options.memoryAdapter;
+    this.summarizeEvery = options.summarizeEvery;
 
     this.validateConfiguration();
   }
@@ -124,6 +131,8 @@ export class Agent {
       maxErrors: this.maxErrors,
       maxIter: this.maxIter,
       state,
+      memoryAdapter: this.memoryAdapter,
+      summarizeEvery: this.summarizeEvery,
     });
   }
 
