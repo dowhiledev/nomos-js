@@ -255,5 +255,6 @@ export const DecisionConstraintsSchema = z.object({
     'reasoning',
   ])).optional(),
   tool_name: z.string().optional(),
+  required_args: z.array(z.string()).optional(),
 });
 export type DecisionConstraints = z.infer<typeof DecisionConstraintsSchema>;

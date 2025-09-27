@@ -246,6 +246,12 @@ Action Types:
     if (constraints?.fields && constraints.fields.length > 0) {
       prompt += `\nOnly include these fields in the JSON: ${constraints.fields.join(', ')}.`;
     }
+    if (constraints?.tool_name) {
+      prompt += `\nIf you use TOOL_CALL, you MUST call the tool '${constraints.tool_name}'.`;
+    }
+    if (constraints?.required_args && constraints.required_args.length > 0) {
+      prompt += `\nInclude these keys in tool_call.tool_kwargs: ${constraints.required_args.join(', ')}.`;
+    }
 
     return prompt;
   }
@@ -452,9 +458,41 @@ Action Types:
       if (!name || !availableToolNames.has(name) || !this.tools.has(name)) {
         return await this.generateDecision(userInput, context, { actions: ['RESPOND'], fields: ['response', 'reasoning'] });
       }
+
+      // Validate arguments against tool schema; guide retry if missing
+      const tool = this.tools.get(name)!;
+      const args = (decision as any).tool_args ?? decision.tool_call?.tool_kwargs ?? {};
+      const missing = this.getMissingArgs(tool.parameters, args);
+      if (missing.length > 0) {
+        return await this.generateDecision(userInput, context, {
+          actions: ['TOOL_CALL'],
+          tool_name: name,
+          required_args: missing,
+          fields: ['tool_call', 'reasoning'],
+        });
+      }
     }
 
     return decision;
+  }
+
+  // Compute missing required argument keys for a tool's parameter schema
+  private getMissingArgs(schema: any, args: Record<string, any>): string[] {
+    try {
+      // If object schema, infer required keys by parsing an empty object and collecting missing field errors
+      const res = (schema as any).safeParse ? (schema as any).safeParse(args) : { success: true };
+      if (res.success) return [];
+      const issues = res.error?.issues || [];
+      const missing = new Set<string>();
+      for (const issue of issues) {
+        // Path like ['text'] for missing required key
+        const key = Array.isArray(issue.path) && issue.path.length ? String(issue.path[0]) : undefined;
+        if (key) missing.add(key);
+      }
+      return Array.from(missing);
+    } catch {
+      return [];
+    }
   }
 
   // Stream a decision (partial objects) and yield final response at the end
