@@ -53,8 +53,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dowhiledev/nomos.git",
-    "directory": "typescript"
+    "url": "git+https://github.com/dowhiledev/nomos-js.git"
   },
   "publishConfig": {
     "access": "public"
