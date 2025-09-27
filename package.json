@@ -8,6 +8,9 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "node": "./dist/index.node.js",
+      "browser": "./dist/index.browser.js",
+      "edge-light": "./dist/index.edge.js",
       "import": "./dist/index.js"
     },
     "./server": {

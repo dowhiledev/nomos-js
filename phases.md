@@ -39,7 +39,7 @@ Phase 2B — Sessions API (Server/Client)
 
 Phase 3 — Packaging & Environment Guards
 
-- [ ] Conditional exports for Node/Edge/Browser or split builds.
+- [x] Conditional exports for Node/Edge/Browser via `exports["."]` mapping to `index.node.js`, `index.browser.js`, and `index.edge.js`.
 - [x] Keep Node APIs out of browser paths; fs persistence behind adapters.
 - [x] ESM-first with smaller export surface; subpath exports `server` and `client` added.
 - [x] Main entry no longer re-exports server/client; use subpaths.
