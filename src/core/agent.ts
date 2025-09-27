@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { StepSchema } from '../models/schemas';
 import type {
   Step,
   Flow,
@@ -43,7 +44,9 @@ export class Agent {
 
   constructor(options: AgentOptions) {
     this.name = options.name;
-    this.steps = new Map(options.steps.map(step => [step.step_id, step]));
+    // Normalize steps to ensure defaults (routes/available_tools) are present
+    const normalizedSteps = options.steps.map((s: any) => StepSchema.parse(s));
+    this.steps = new Map(normalizedSteps.map((step: any) => [step.step_id, step]));
     this.startStepId = options.startStepId;
     this.persona = options.persona;
     this.systemMessage = options.systemMessage;

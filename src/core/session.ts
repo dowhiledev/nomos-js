@@ -113,24 +113,43 @@ export class Session {
   // Generate decision using LLM
   private async generateDecision(
     userInput: string,
-    context: string
+    context: string,
+    constraints?: import('../models/schemas').DecisionConstraints
   ): Promise<Decision> {
     const step = this.currentStep;
 
     // Build prompt for decision making
-    const prompt = this.buildDecisionPrompt(userInput, context, step);
+    const prompt = this.buildDecisionPrompt(userInput, context, step, constraints);
 
-    // Get LLM response
-    const response = await this.llm.generateText(prompt, {
-      temperature: 0.1, // Low temperature for consistent decisions
-    });
+    // Build constrained schema if needed
+    const { DecisionSchema } = await import('../models/schemas');
+    let schema = DecisionSchema as any;
+    if (constraints?.actions && constraints.actions.length > 0) {
+      schema = schema.refine((d: any) => constraints.actions!.includes(d.action), {
+        message: `action must be one of: ${constraints.actions.join(', ')}`,
+      });
+    }
 
-    // Parse decision from response
-    return this.parseDecision(response);
+    try {
+      const decision = await this.llm.generateObject(schema as any, {
+        prompt,
+        options: { temperature: 0.1 },
+      });
+      return decision as Decision;
+    } catch (err) {
+      // Fallback to text + parse
+      const response = await this.llm.generateText(prompt, { temperature: 0.1 });
+      return this.parseDecision(response);
+    }
   }
 
   // Build decision prompt
-  private buildDecisionPrompt(userInput: string, context: string, step: Step): string {
+  private buildDecisionPrompt(
+    userInput: string,
+    context: string,
+    step: Step,
+    constraints?: import('../models/schemas').DecisionConstraints,
+  ): string {
     let prompt = '';
 
     // System message and persona
@@ -186,6 +205,13 @@ Action Types:
 - TOOL_CALL: Use a tool to gather information or perform an action
 - MOVE: Transition to another step
 - END: End the conversation`;
+
+    if (constraints?.actions && constraints.actions.length > 0) {
+      prompt += `\n\nAllowed actions in this response: ${constraints.actions.join(', ')}.`;
+    }
+    if (constraints?.fields && constraints.fields.length > 0) {
+      prompt += `\nOnly include these fields in the JSON: ${constraints.fields.join(', ')}.`;
+    }
 
     return prompt;
   }

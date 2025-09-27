@@ -1,10 +1,13 @@
-import { generateText, embed } from 'ai';
+import { generateText, generateObject, streamText, embed } from 'ai';
 import { z } from 'zod';
 
 // Base LLM interface
 export interface LLMBase {
   generateText(prompt: string, options?: Record<string, any>): Promise<string>;
   embedText(text: string): Promise<number[]>;
+  embedBatch(texts: string[]): Promise<number[][]>;
+  generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T>;
+  streamText(prompt: string, options?: Record<string, any>): AsyncIterable<string>;
 }
 
 // Configuration schemas
@@ -65,6 +68,34 @@ export class OpenAILLM implements LLMBase {
     const result = await embed({ model: embeddingModel, value: text });
     return result.embedding;
   }
+
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    const out: number[][] = [];
+    for (const t of texts) {
+      out.push(await this.embedText(t));
+    }
+    return out;
+  }
+
+  async generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T> {
+    const provider = await this.getProvider();
+    const model = provider(this.config.model);
+    const res = await generateObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
+    return res.object as T;
+  }
+
+  streamText(prompt: string, options?: Record<string, any>): AsyncIterable<string> {
+    const self = this;
+    async function* gen() {
+      const provider = await self.getProvider();
+      const model = provider(self.config.model);
+      const res = await streamText({ model, prompt, ...(options || {}) });
+      for await (const token of res.textStream) {
+        yield token as string;
+      }
+    }
+    return gen();
+  }
 }
 
 // Anthropic implementation using @ai-sdk/anthropic; embeddings via OpenAI fallback
@@ -110,6 +141,34 @@ export class AnthropicLLM implements LLMBase {
     const embeddingModel = provider.embedding(embeddingId);
     const result = await embed({ model: embeddingModel, value: text });
     return result.embedding;
+  }
+
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    const out: number[][] = [];
+    for (const t of texts) {
+      out.push(await this.embedText(t));
+    }
+    return out;
+  }
+
+  async generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T> {
+    const provider = await this.getProvider();
+    const model = provider(this.config.model);
+    const res = await generateObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
+    return res.object as T;
+  }
+
+  streamText(prompt: string, options?: Record<string, any>): AsyncIterable<string> {
+    const self = this;
+    async function* gen() {
+      const provider = await self.getProvider();
+      const model = provider(self.config.model);
+      const res = await streamText({ model, prompt, ...(options || {}) });
+      for await (const token of res.textStream) {
+        yield token as string;
+      }
+    }
+    return gen();
   }
 }
 
