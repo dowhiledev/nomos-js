@@ -4,26 +4,28 @@
 
 **Phase 0 — Baseline & Architecture**
 - Audit Python modules: core, sessions, state machine, memory, tools (incl. MCP), llms, config, events, flows, utils.
-  - ~Capture parity matrix vs current TS (what exists, what’s missing) and target scope for v1.~
-  - ~Decide runtime targets: Node.js (server), Edge (Vercel), Browser (client). Document fs/network constraints per target.~
-  - ~Decide package shape (single package with optional provider peer deps) and public API surface.~
-  - ~Deliverables: Parity matrix doc, architecture notes, API surface draft.~
+  - ~~Capture parity matrix vs current TS (what exists, what’s missing) and target scope for v1.~~
+  - ~~Decide runtime targets: Node.js (server), Edge (Vercel), Browser (client). Document fs/network constraints per target.~~
+  - ~~Decide package shape (single package with optional provider peer deps) and public API surface.~~
+  - ~~Deliverables: Parity matrix doc, architecture notes, API surface draft.~~
 
 **Phase 1 — Models & Schemas (Zod)**
 - Complete Zod schemas to match Python Pydantic models:
   - AgentConfig (incl. memory, logging, tools, llm, embedding, flows), Step, Route (aliases: `when`/`to`), StepOverrides, Decision, DecisionExample (with visibility), Event, Message, Summary, Flow, FlowContext/FlowState, State.
   - Add DecisionConstraints and validation helpers.
-  - ~Provide type‑safe constructors and parsing helpers (from JSON/YAML) and schema inference types.~
-  - ~Deliverables: Extended `src/models/schemas.ts`, parsing utilities, unit tests for schema validation.~
-  - ~Integrate examples selection (few‑shot) using embeddings input into prompts.~
+  - ~~Provide type‑safe constructors and parsing helpers (from JSON/YAML) and schema inference types.~~
+  - ~~Deliverables: Extended `src/models/schemas.ts`, parsing utilities, unit tests for schema validation.~~
+  - ~~Integrate examples selection (few‑shot) using embeddings input into prompts.~~
+  - ~~Decision parity with Python (field names + ordering: reasoning, action, response, suggestions, step_id, tool_call).~~
 
 **Phase 2 — LLM Abstraction (Vercel AI SDK)**
 - Implement real provider wrappers backed by AI SDK:
-  - ~OpenAI (`@ai-sdk/openai`), Anthropic (`@ai-sdk/anthropic`).~
-  - ~Support `generateText`, streaming, and structured/object generation for decisions.~
-  - ~Implement `embedText` using provider embeddings or fallback model; batch embedding API (sequential wrapper).~
+  - ~~OpenAI (`@ai-sdk/openai`), Anthropic (`@ai-sdk/anthropic`).~~
+  - ~~Support `generateText`, streaming, and structured/object generation for decisions.~~
+  - ~~Implement `embedText` using provider embeddings or fallback model; batch embedding API (sequential wrapper).~~
 - Config: `LLMConfig` maps to provider clients; support baseURL, apiKey, temperature, maxTokens, etc.
-  - ~Deliverables: Concrete LLM classes, provider selection factory, examples (streaming), tests remain offline.~
+  - ~~Deliverables: Concrete LLM classes, provider selection factory, examples (streaming), tests remain offline.~~
+  - Status: Completed for OpenAI + Anthropic (embeddings fallback via OpenAI). Streaming APIs exist but are de‑emphasized until non‑stream parity is fully solid.
 
 **Phase 3 — Memory System**
 - Implement session memory with pluggable backends (in‑memory default):
@@ -32,14 +34,16 @@
   - Simple summarization hook (pluggable, optional) and size limits.
 - Persistence strategies: JSON‑serializable state for Node (fs optional), Browser (localStorage), Edge (KV adapter stub). Avoid Node‑only APIs in core paths.
 - Deliverables: `src/memory/*`, interfaces, default impl, tests.
+  - Status: Partial — basic in‑session history exists; flow memory/persistence not yet implemented.
 
 **Phase 4 — State Machine & Flows**
 - Port state machine that compiles steps, validates routes/tools, and manages flow context:
   - Flow config (start_step_id, steps), current flow tracking, enter/exit transitions.
   - Step‑level overrides (persona, llm), quick suggestions, auto_flow.
-  - ~Validation on init: start step, route targets, tools availability.~
+  - ~~Validation on init: start step, route targets, tools availability.~~
 - Mermaid graph generation utility (string output) for visualization; optional CLI to render.
 - Deliverables: `src/core/state-machine.ts`, flow utils, validation tests, visualization util.
+  - Status: Validation logic present in Agent/Session; dedicated state‑machine module and flow runtime still to do.
 
 **Phase 5 — Tools System Parity**
 - Extend current tools to parity:
@@ -48,16 +52,18 @@
   - API tools (HTTP), function tools, package/registry mapping. MCP server bridge (interface + adapter, Node‑only guard).
   - ToolRegistry: namespacing, lookup, serialization of tool definitions.
 - Deliverables: Expanded `src/tools/*`, MCP adapter stub, examples, tests.
+  - Status: Function + HTTP tools present; error taxonomy/deferred/MCP pending. Tool args validation + guided retry planned.
 
 **Phase 6 — Decision Engine**
 - Replace ad‑hoc prompt/regex JSON parsing with structured generation:
-  - ~Build decision prompt messages (system/persona/context/routes/tools/examples).~
-  - ~Use AI SDK object generation with Zod `DecisionSchema` and `DecisionConstraints` to restrict actions on retries.~
-  - ~Add few‑shot example selection via embeddings.~
-  - ~Route/tool validation with constraints-driven retry to RESPOND on invalid MOVE/TOOL_CALL.~
-  - ~Streaming decisions (partial + final) via AI SDK object streaming surfaced on `Session.streamNext` and `Agent.streamNext`.~
+  - ~~Build decision prompt messages (system/persona/context/routes/tools/examples).~~
+  - ~~Use AI SDK object generation with Zod `DecisionSchema` and `DecisionConstraints` to restrict actions on retries.~~
+  - ~~Add few‑shot example selection via embeddings.~~
+  - ~~Route/tool validation with constraints-driven retry to RESPOND on invalid MOVE/TOOL_CALL.~~
+  - Streaming decisions: API scaffolding present but de‑emphasized; focus is on robust non‑stream path.
   - Fallback strategy: on iteration limits/errors, if not `auto_flow`, emit fallback RESPOND. (Partially aligned)
 - Deliverables: Decision builder, structured generation, retry policy, tests with fixtures.
+  - Status: Core non‑stream engine complete; live E2E tests in place.
 
 **Phase 7 — Session Parity & Events**
 - Align `Agent`/`Session` API with Python:
@@ -65,6 +71,7 @@
   - Event emitter interface (async), optional OpenTelemetry context (guarded).
   - Keep/strip decision data in returned events akin to `keep_event_decision`.
 - Deliverables: Updated `src/core/agent.ts` and `src/core/session.ts`, event interfaces, tests.
+  - Status: APIs aligned; event system not yet added.
 
 **Phase 8 — Client & Server Usage**
 - Ensure SDK works in:
@@ -84,6 +91,20 @@
   - Schemas, tools, state machine, decision engine, flows, session persistence.
 - Expand examples: general assistant, customer support, retrieval example, flow demo, browser usage.
 - Deliverables: `tests/*`, verified examples in `examples/*` with run scripts.
+  - Status: Added live OpenAI E2E tests (no mocks) and interactive CLI example.
+
+**Milestone: Non‑stream Parity Achieved**
+- Decisions: Python‑parity schema and ordering; constraints; examples‑guided; validation + retry.
+- Tools: Deterministic tool calls with auto‑summarized responses; tool output surfaced.
+- Transitions: MOVE validated against routes; auto‑advance behavior demonstrated in interactive example.
+- Demos/Tests: two‑step tool demo; general assistant; interactive CLI; live OpenAI tests.
+
+**Next Up (Prioritized)**
+1) Tool args validation against Zod schema with guided retry (list missing keys).
+2) State‑machine module and basic flow runtime (enter/exit, flow memory hooks).
+3) Event emitter + optional telemetry hooks.
+4) Persistence adapters for memory (Node/Edge/Browser) and simple summarization.
+5) MCP/Deferred tools + error taxonomy.
 
 **Phase 11 — Docs & Migration Guide**
 - Update README and add docs:
