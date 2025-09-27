@@ -83,24 +83,28 @@ export const ToolCallSchema = z.object({
 
 export type ToolCall = z.infer<typeof ToolCallSchema>;
 
-export const DecisionSchema = z.object({
-  action: ActionSchema,
-  // MOVE → target step id (alias step_id)
-  target: z.string().optional(),
-  step_id: z.string().optional(),
-  // RESPOND → string or structured object
-  response: z.any().optional(),
-  suggestions: z.array(z.string()).optional(),
-  // TOOL_CALL → either tool_name/tool_args or tool_call
-  tool_name: z.string().optional(),
-  tool_args: z.record(z.any()).optional(),
-  tool_call: ToolCallSchema.optional(),
-  reasoning: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((d) => {
-  // Normalize step_id → target
-  if (!d.target && d.step_id) d.target = d.step_id;
-  return d;
-});
+// Decision (Python order: reasoning, action, response, suggestions, step_id, tool_call)
+export const DecisionSchema = z
+  .object({
+    // Reasoning first
+    reasoning: z.union([z.string(), z.array(z.string()), z.null()]).optional(),
+    // The action
+    action: ActionSchema,
+    // RESPOND
+    response: z.any().nullable().optional(),
+    suggestions: z.array(z.string()).nullable().optional(),
+    // MOVE
+    step_id: z.string().nullable().optional(),
+    // TOOL_CALL
+    tool_call: ToolCallSchema.nullable().optional(),
+  })
+  .transform((d) => {
+    // Coerce reasoning to array if string
+    if (typeof (d as any).reasoning === 'string') {
+      (d as any).reasoning = [(d as any).reasoning];
+    }
+    return d;
+  });
 export type Decision = z.infer<typeof DecisionSchema>;
 
 // Event types for session tracking

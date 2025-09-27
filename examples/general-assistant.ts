@@ -1,4 +1,4 @@
-import { Agent, OpenAILLM, createTool, createHTTPTool } from '../src/index';
+import { Agent, OpenAILLM, createTool } from '../src/index';
 import { z } from 'zod';
 import fs from 'fs';
 
@@ -31,19 +31,6 @@ const llmConfig = {
 
 // Create LLM instance
 const llm = new OpenAILLM(llmConfig);
-
-// Define tools
-const weatherTool = createHTTPTool(
-  'get_weather',
-  'Get current weather for a city',
-  z.object({
-    city: z.string().describe('The city name'),
-  }),
-  {
-    url: 'https://api.openweathermap.org/data/2.5/weather',
-    method: 'GET',
-  }
-);
 
 const calculatorTool = createTool(
   'calculate',
@@ -119,13 +106,14 @@ Explain concepts clearly. After answering, ask about more technology or differen
   },
   {
     step_id: 'weather',
-    description: `Help users get weather information for cities using the weather tool.
-Ask for the city name, then provide the weather information.`,
+    description: `Previously supported weather via an external API. This demo omits it.
+If the user asks for weather, politely explain that the weather tool is not configured in this demo.
+Offer to help with other topics or math.`,
     routes: [
       { target: 'greet', condition: 'User wants different topic' },
       { target: 'end', condition: 'User wants to end' },
     ],
-    available_tools: ['get_weather'],
+    available_tools: [],
   },
   {
     step_id: 'math',
@@ -153,7 +141,7 @@ const agent = new Agent({
 You explain concepts clearly and provide accurate information. You're enthusiastic about learning
 and sharing knowledge.`,
   systemMessage: 'You are a helpful AI assistant with access to various tools and knowledge.',
-  tools: [weatherTool, calculatorTool],
+  tools: [calculatorTool],
   llm,
 });
 
@@ -166,7 +154,7 @@ async function main() {
   let response = await agent.next();
   console.log('Assistant:', response.response);
 
-  // Simulate user interactions
+  // Simulate user interactions, preserving session state across turns
   const userInputs = [
     'I want to know about science',
     'What is quantum physics?',
@@ -178,7 +166,7 @@ async function main() {
   for (const userInput of userInputs) {
     console.log('\nUser:', userInput);
 
-    response = await agent.next(userInput);
+    response = await agent.next(userInput, response.state);
     console.log('Assistant:', response.response);
 
     if (response.tool_output) {
@@ -193,8 +181,6 @@ async function main() {
 }
 
 // Run the example
-if (require.main === module) {
-  main().catch(console.error);
-}
+main().catch(console.error);
 
 export { agent };

@@ -59,9 +59,9 @@ export class Session {
     this.name = config.name;
     this.llm = config.llm;
     this.embeddingModel = config.embeddingModel;
-    this.steps = new Map(Object.entries(config.steps));
+    this.steps = config.steps;
     this.startStepId = config.startStepId;
-    this.tools = new Map(Object.entries(config.tools));
+    this.tools = config.tools;
     this.systemMessage = config.systemMessage;
     this.persona = config.persona;
     this.flows = config.flows;
@@ -222,21 +222,23 @@ export class Session {
       prompt += examplesText;
     }
 
-    // Instructions
+    // Instructions (Python order)
     prompt += `Based on the current step, user input, and available options, decide what to do next.
-Respond with a JSON object containing:
+Respond with a JSON object containing (in this order):
+- "reasoning": array of short strings explaining your thought process
 - "action": "RESPOND", "TOOL_CALL", "MOVE", or "END"
-- "target": step_id to move to (for MOVE action)
 - "response": text response (for RESPOND action)
-- "tool_name": tool to call (for TOOL_CALL action)
-- "tool_args": arguments for tool (for TOOL_CALL action)
-- "reasoning": brief explanation of the decision
+- "suggestions": array of quick reply suggestions (optional, for RESPOND)
+- "step_id": step_id to move to (for MOVE action)
+- "tool_call": { "tool_name": string, "tool_kwargs": object } (for TOOL_CALL action)
 
 Action Types:
 - RESPOND: Provide information or ask for clarification
 - TOOL_CALL: Use a tool to gather information or perform an action
 - MOVE: Transition to another step
 - END: End the conversation`;
+
+    prompt += `\n\nWhen using TOOL_CALL, infer required arguments from the latest user message and context, and include all required keys in tool_call.tool_kwargs. Do not omit required parameters.`;
 
     if (constraints?.actions && constraints.actions.length > 0) {
       prompt += `\n\nAllowed actions in this response: ${constraints.actions.join(', ')}.`;
@@ -257,16 +259,11 @@ Action Types:
         throw new Error('No JSON found in response');
       }
 
-      const decisionData = JSON.parse(jsonMatch[0]);
-
-      return {
-        action: decisionData.action,
-        target: decisionData.target,
-        response: decisionData.response,
-        tool_name: decisionData.tool_name,
-        tool_args: decisionData.tool_args,
-        reasoning: decisionData.reasoning,
-      };
+      const raw = JSON.parse(jsonMatch[0]);
+      const step_id = raw.step_id ?? raw.target;
+      const tool_call = raw.tool_call ?? (raw.tool_name ? { tool_name: raw.tool_name, tool_kwargs: raw.tool_args ?? {} } : undefined);
+      const reasoning = Array.isArray(raw.reasoning) ? raw.reasoning : (raw.reasoning ? [raw.reasoning] : undefined);
+      return { action: raw.action, step_id, response: raw.response, tool_call, reasoning } as Decision;
     } catch (error) {
       // Fallback decision
       return {
@@ -295,12 +292,21 @@ Action Types:
     }
 
     try {
+      // Record user input into history for context
+      if (userInput && userInput.trim().length > 0) {
+        this.history.push({ role: 'user', content: userInput, timestamp: new Date() });
+      }
       // Generate decision
       const context = this.buildContext();
-      const decision = await this.generateDecision(userInput || '', context, constraints);
+      const originalDecision = await this.generateDecision(userInput || '', context, constraints);
 
-      // Execute decision
-      return await this.executeDecision(decision, returnTool, returnStep, verbose);
+      // Validate and, if needed, retry with constraints
+      const validated = await this.ensureValidDecision(originalDecision, userInput || '', context);
+
+      // Execute using normalized decision, return original when verbose
+      const result = await this.executeDecision(this.normalizeDecision(validated), returnTool, returnStep, verbose);
+      if (verbose) result.decision = this.canonicalizeDecision(validated);
+      return result;
     } catch (error) {
       this.errorCount++;
 
@@ -346,38 +352,41 @@ Action Types:
   ): Promise<Response> {
     let toolOutput: string | null = null;
 
-    // Normalize decision fields
-    if (!decision.target && (decision as any).step_id) {
-      (decision as any).target = (decision as any).step_id;
-    }
-    if (!decision.tool_name && (decision as any).tool_call?.tool_name) {
-      (decision as any).tool_name = (decision as any).tool_call.tool_name;
-      (decision as any).tool_args = (decision as any).tool_call.tool_kwargs;
-    }
+    const target = (decision as any).target ?? decision.step_id;
+    const toolName = (decision as any).tool_name ?? decision.tool_call?.tool_name;
+    const toolArgs = (decision as any).tool_args ?? decision.tool_call?.tool_kwargs;
 
     switch (decision.action) {
       case 'TOOL_CALL':
-        if (decision.tool_name && decision.tool_args) {
+        if (toolName) {
           try {
-            const result = await this.runTool(decision.tool_name, decision.tool_args);
+            const result = await this.runTool(toolName, toolArgs || {});
             toolOutput = JSON.stringify(result);
 
             // Add tool result to history
             this.history.push({
               role: 'tool',
-              content: `Tool ${decision.tool_name} result: ${toolOutput}`,
+              content: `Tool ${toolName} result: ${toolOutput}`,
               timestamp: new Date(),
             });
+
+            // If no explicit assistant response was provided, generate a concise summary
+            if (!decision.response) {
+              decision.response = `Executed ${toolName}. Result: ${toolOutput}`;
+            }
           } catch (error) {
             toolOutput = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            if (!decision.response) {
+              decision.response = `Tried ${toolName} but encountered an error: ${toolOutput}`;
+            }
           }
         }
         break;
 
       case 'MOVE':
-        if (decision.target) {
-          this.currentStepId = decision.target;
-          this.history.push({ step_id: decision.target });
+        if (target) {
+          this.currentStepId = target;
+          this.history.push({ step_id: target });
         }
         break;
 
@@ -421,6 +430,149 @@ Action Types:
       tool_output: null,
       state: this.getState(),
     };
+  }
+
+  // Ensure the decision is valid for the current step; otherwise retry with RESPOND constraint
+  private async ensureValidDecision(decision: Decision, userInput: string, context: string): Promise<Decision> {
+    const step = this.currentStep;
+    const availableRouteTargets = new Set(step.routes.map(r => r.target));
+    const availableToolNames = new Set(step.available_tools);
+
+    // Invalid MOVE: missing or unknown target
+    if (decision.action === 'MOVE') {
+      const target = (decision as any).target ?? decision.step_id;
+      if (!target || !availableRouteTargets.has(target)) {
+        return await this.generateDecision(userInput, context, { actions: ['RESPOND'], fields: ['response', 'reasoning'] });
+      }
+    }
+
+    // Invalid TOOL_CALL: missing or unavailable tool
+    if (decision.action === 'TOOL_CALL') {
+      const name = (decision as any).tool_name ?? decision.tool_call?.tool_name;
+      if (!name || !availableToolNames.has(name) || !this.tools.has(name)) {
+        return await this.generateDecision(userInput, context, { actions: ['RESPOND'], fields: ['response', 'reasoning'] });
+      }
+    }
+
+    return decision;
+  }
+
+  // Stream a decision (partial objects) and yield final response at the end
+  async *streamNext(
+    userInput?: string,
+    returnTool: boolean = false,
+    returnStep: boolean = false,
+    verbose: boolean = false,
+    constraints?: DecisionConstraints,
+  ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Decision; response?: Response }> {
+    this.iterationCount++;
+    if (this.iterationCount > this.maxIter) {
+      yield { type: 'final', response: this.createResponse(
+        'I apologize, but I\'ve reached the maximum number of iterations. Please start a new conversation.',
+        'END'
+      ) };
+      return;
+    }
+
+    try {
+      const step = this.currentStep;
+      // Build examples and prompt as in generateDecision
+      let examplesText = '';
+      if ((step as any).examples && (step as any).examples.length > 0) {
+        try {
+          const contexts = (step as any).examples.map((e: any) => e.context as string);
+          const currentEmb = await this.embeddingModel.embedText(this.buildContext());
+          const exEmbeddings = await this.embeddingModel.embedBatch(contexts);
+          const sims: number[] = exEmbeddings.map((emb: number[]) => cosineSimilarity(currentEmb, emb));
+          const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map((ex: any, i: number) => ({ ex, sim: sims[i] }));
+          pairs.sort((a, b) => b.sim - a.sim);
+          const picked = pairs.filter((p) => p.sim >= 0.5).slice(0, 3);
+          if (picked.length > 0) {
+            examplesText += 'Examples (context -> decision):\n';
+            for (const { ex } of picked) {
+              const decisionTxt = typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
+              examplesText += `- ${ex.context} -> ${decisionTxt}\n`;
+            }
+            examplesText += '\n';
+          }
+        } catch {}
+      }
+
+      const prompt = this.buildDecisionPrompt(userInput || '', this.buildContext(), step, constraints, examplesText);
+      const { DecisionSchema } = await import('../models/schemas');
+      let schema = DecisionSchema as any;
+      if (constraints?.actions && constraints.actions.length > 0) {
+        schema = schema.refine((d: any) => constraints.actions!.includes(d.action), {
+          message: `action must be one of: ${constraints.actions.join(', ')}`,
+        });
+      }
+
+      // Stream textual tokens and try to emit partial structured decisions
+      try {
+        const tokenStream = this.llm.streamText(prompt, { temperature: 0.1 });
+        let acc = '';
+        let lastLen = 0;
+        for await (const token of tokenStream) {
+          acc += token;
+          if (acc.length !== lastLen) {
+            lastLen = acc.length;
+            const d = this.normalizeDecision({ action: 'RESPOND', response: acc } as any);
+            yield { type: 'partial', decision: d };
+          }
+        }
+      } catch {}
+
+      // Get a final structured decision for correctness
+      let finalDecision: Decision;
+      try {
+        finalDecision = this.normalizeDecision(await this.llm.generateObject(schema, { prompt, options: { temperature: 0.1 } }) as any);
+      } catch {
+        const response = await this.llm.generateText(prompt, { temperature: 0.1 });
+        finalDecision = this.parseDecision(response);
+      }
+      const finalResponse = await this.executeDecision(finalDecision, returnTool, returnStep, verbose);
+      yield { type: 'final', decision: verbose ? finalDecision : undefined, response: finalResponse };
+    } catch (error) {
+      this.errorCount++;
+      if (this.errorCount >= this.maxErrors) {
+        yield { type: 'final', response: this.createResponse(
+          'I apologize, but I\'ve encountered too many errors. Please start a new conversation.',
+          'END'
+        ) };
+        return;
+      }
+      yield { type: 'final', response: this.createResponse(
+        'I apologize, but I encountered an error. Let me try again.',
+        'RESPOND'
+      ) };
+    }
+  }
+
+  private normalizeDecision(d: Decision): Decision {
+    const dd: any = { ...d };
+    if (!dd.target && dd.step_id) dd.target = dd.step_id;
+    if (!dd.tool_name && dd.tool_call?.tool_name) {
+      dd.tool_name = dd.tool_call.tool_name;
+      dd.tool_args = dd.tool_call.tool_kwargs;
+    }
+    return dd as Decision;
+  }
+
+  private canonicalizeDecision(d: Decision): Decision {
+    // Ensure Python parity ordering and nullability for printing and return
+    const reasoning = d.reasoning
+      ? Array.isArray(d.reasoning)
+        ? d.reasoning
+        : [d.reasoning as any]
+      : null;
+    const action = d.action;
+    const response = (d as any).response ?? null;
+    const suggestions = (d as any).suggestions ?? null;
+    const step_id = (d as any).step_id ?? null;
+    const tool_call = (d as any).tool_call ?? null;
+    // Construct in the exact field order
+    const ordered: any = { reasoning, action, response, suggestions, step_id, tool_call };
+    return ordered as Decision;
   }
 }
 

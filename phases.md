@@ -15,6 +15,7 @@
   - Add DecisionConstraints and validation helpers.
   - ~Provide type‑safe constructors and parsing helpers (from JSON/YAML) and schema inference types.~
   - ~Deliverables: Extended `src/models/schemas.ts`, parsing utilities, unit tests for schema validation.~
+  - ~Integrate examples selection (few‑shot) using embeddings input into prompts.~
 
 **Phase 2 — LLM Abstraction (Vercel AI SDK)**
 - Implement real provider wrappers backed by AI SDK:
@@ -36,7 +37,7 @@
 - Port state machine that compiles steps, validates routes/tools, and manages flow context:
   - Flow config (start_step_id, steps), current flow tracking, enter/exit transitions.
   - Step‑level overrides (persona, llm), quick suggestions, auto_flow.
-  - Validation on init: start step, route targets, tools availability.
+  - ~Validation on init: start step, route targets, tools availability.~
 - Mermaid graph generation utility (string output) for visualization; optional CLI to render.
 - Deliverables: `src/core/state-machine.ts`, flow utils, validation tests, visualization util.
 
@@ -53,6 +54,8 @@
   - ~Build decision prompt messages (system/persona/context/routes/tools/examples).~
   - ~Use AI SDK object generation with Zod `DecisionSchema` and `DecisionConstraints` to restrict actions on retries.~
   - ~Add few‑shot example selection via embeddings.~
+  - ~Route/tool validation with constraints-driven retry to RESPOND on invalid MOVE/TOOL_CALL.~
+  - ~Streaming decisions (partial + final) via AI SDK object streaming surfaced on `Session.streamNext` and `Agent.streamNext`.~
   - Fallback strategy: on iteration limits/errors, if not `auto_flow`, emit fallback RESPOND. (Partially aligned)
 - Deliverables: Decision builder, structured generation, retry policy, tests with fixtures.
 

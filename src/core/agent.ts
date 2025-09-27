@@ -143,6 +143,19 @@ export class Agent {
     return session.next(userInput, returnTool, returnStep, verbose, constraints);
   }
 
+  // Stream decisions (partial + final)
+  streamNext(
+    userInput?: string,
+    sessionData?: State,
+    returnTool: boolean = false,
+    returnStep: boolean = false,
+    verbose: boolean = false,
+    constraints?: DecisionConstraints,
+  ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Response['decision']; response?: Response }> {
+    const session = sessionData ? this.createSession(sessionData) : this.createSession();
+    return session.streamNext(userInput, returnTool, returnStep, verbose, constraints);
+  }
+
   // Get agent configuration
   getConfig(): AgentConfig {
     return {

@@ -39,9 +39,9 @@ describe('Schemas/Normalization', () => {
     expect(e2.content).toBe('x');
   });
 
-  it('normalizes decision step_id → target and supports tool_call', () => {
+  it('parses Python-parity decision (step_id, tool_call)', () => {
     const d1 = DecisionSchema.parse({ action: 'MOVE', step_id: 'next' });
-    expect(d1.target).toBe('next');
+    expect(d1.step_id).toBe('next');
 
     const d2 = DecisionSchema.parse({
       action: 'TOOL_CALL',
@@ -65,4 +65,3 @@ describe('Schemas/Normalization', () => {
     expect(dc.actions?.[0]).toBe('RESPOND');
   });
 });
-

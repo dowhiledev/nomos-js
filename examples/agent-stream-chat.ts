@@ -37,25 +37,19 @@ async function main() {
     llm,
   });
 
-  const session = agent.createSession();
-
-  const userInput = 'Explain event loop in Node.js in 3-4 sentences.';
-  const context = (session as any).buildContext ? (session as any).buildContext() : '';
-
-  // Build a simple prompt using agent persona/system
-  const prompt = `System: You are a concise assistant.\n\nContext: ${context}\n\nUser: ${userInput}\n\nAssistant:`;
-
-  const stream = await llm.streamText(prompt);
-  let out = '';
-  for await (const token of stream) {
-    out += token;
-    process.stdout.write(token);
+  const userInput = 'Write a detailed, 8-10 sentence explanation of the Node.js event loop, streaming your answer as you generate it.';
+  const stream = agent.streamNext(userInput, undefined, false, false, true, { actions: ['RESPOND'] });
+  process.stdout.write('Decision stream:\n');
+  for await (const update of stream) {
+    if (update.type === 'partial' && update.decision) {
+      process.stdout.write(`partial: ${JSON.stringify(update.decision)}\n`);
+    } else if (update.type === 'final' && update.response) {
+      process.stdout.write(`final response: ${JSON.stringify(update.response)}\n`);
+    }
   }
-  process.stdout.write('\n');
 }
 
 main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

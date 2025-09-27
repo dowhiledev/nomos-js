@@ -1,4 +1,4 @@
-import { generateText, generateObject, streamText, embed } from 'ai';
+import { generateText, generateObject, streamText, streamObject, embed } from 'ai';
 import { z } from 'zod';
 
 // Base LLM interface
@@ -8,6 +8,7 @@ export interface LLMBase {
   embedBatch(texts: string[]): Promise<number[][]>;
   generateObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<T>;
   streamText(prompt: string, options?: Record<string, any>): AsyncIterable<string>;
+  streamObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }): Promise<{ partialStream: AsyncIterable<T>; final: Promise<T> }>;
 }
 
 // Configuration schemas
@@ -96,6 +97,13 @@ export class OpenAILLM implements LLMBase {
     }
     return gen();
   }
+
+  async streamObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }) {
+    const provider = await this.getProvider();
+    const model = provider(this.config.model);
+    const res = await streamObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
+    return { partialStream: res.partialObjectStream as AsyncIterable<T>, final: res.object as Promise<T> };
+  }
 }
 
 // Anthropic implementation using @ai-sdk/anthropic; embeddings via OpenAI fallback
@@ -169,6 +177,13 @@ export class AnthropicLLM implements LLMBase {
       }
     }
     return gen();
+  }
+
+  async streamObject<T>(schema: z.ZodType<T>, args: { prompt: string; options?: Record<string, any> }) {
+    const provider = await this.getProvider();
+    const model = provider(this.config.model);
+    const res = await streamObject({ model, schema, prompt: args.prompt, ...(args.options || {}) });
+    return { partialStream: res.partialObjectStream as AsyncIterable<T>, final: res.object as Promise<T> };
   }
 }
 
