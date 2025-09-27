@@ -592,7 +592,7 @@ Action Types:
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
-  ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Decision; response?: Response }> {
+  ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Decision; response?: Response; response_chunk?: string; tool_call?: { tool_name: string; tool_args: Record<string, any> } }> {
     this.iterationCount++;
     if (this.iterationCount > this.maxIter) {
       yield { type: 'final', response: this.createResponse(
@@ -635,30 +635,46 @@ Action Types:
         });
       }
 
-      // Stream textual tokens and try to emit partial structured decisions
-      try {
-        const tokenStream = this.llm.streamText(prompt, { temperature: 0.1 });
-        let acc = '';
-        let lastLen = 0;
-        for await (const token of tokenStream) {
-          acc += token;
-          if (acc.length !== lastLen) {
-            lastLen = acc.length;
-            const d = this.normalizeDecision({ action: 'RESPOND', response: acc } as any);
-            yield { type: 'partial', decision: d };
+      // Stream structured object with partial updates
+      const { partialStream, final } = await this.llm.streamObject(schema, { prompt, options: { temperature: 0.1 } }) as any;
+      let lastResponseText = '';
+      let toolAnnounced = false;
+      let actionAnnounced = false;
+      let reasoningCount = 0;
+      for await (const partial of partialStream) {
+        const p = this.normalizeDecision(partial as any);
+        // Emit action once
+        if (p.action && !actionAnnounced) {
+          actionAnnounced = true;
+          yield { type: 'partial', decision: this.canonicalizeDecision({ action: p.action } as any) };
+        }
+        // Announce tool call before execution
+        if (!toolAnnounced && (p as any).tool_call?.tool_name) {
+          toolAnnounced = true;
+          yield { type: 'partial', tool_call: { tool_name: (p as any).tool_call.tool_name, tool_args: (p as any).tool_call.tool_kwargs || {} } };
+        }
+        // Stream reasoning lines as they become available
+        if (Array.isArray((p as any).reasoning) && (p as any).reasoning.length > reasoningCount) {
+          reasoningCount = (p as any).reasoning.length;
+          yield { type: 'partial', decision: this.canonicalizeDecision({ reasoning: (p as any).reasoning } as any) };
+        }
+        // Stream response chunks only for RESPOND action
+        if (p.action === 'RESPOND' && typeof (p as any).response === 'string') {
+          const txt = String((p as any).response);
+          if (txt.length > lastResponseText.length) {
+            const delta = txt.slice(lastResponseText.length);
+            lastResponseText = txt;
+            if (delta) yield { type: 'partial', response_chunk: delta };
           }
         }
-      } catch {}
-
-      // Get a final structured decision for correctness
-      let finalDecision: Decision;
-      try {
-        finalDecision = this.normalizeDecision(await this.llm.generateObject(schema, { prompt, options: { temperature: 0.1 } }) as any);
-      } catch {
-        const response = await this.llm.generateText(prompt, { temperature: 0.1 });
-        finalDecision = this.parseDecision(response);
       }
-      const finalResponse = await this.executeDecision(finalDecision, returnTool, returnStep, verbose);
+      // Final decision
+      let finalDecision: Decision = await final as any;
+      finalDecision = this.normalizeDecision(finalDecision);
+      // Validate/correct final decision before execution (fills missing tool args, etc.)
+      const validated = await this.ensureValidDecision(finalDecision, userInput || '', this.buildContext());
+      // Execute after announcing tool call
+      const finalResponse = await this.executeDecision(this.normalizeDecision(validated), returnTool, returnStep, verbose);
       yield { type: 'final', decision: verbose ? finalDecision : undefined, response: finalResponse };
     } catch (error) {
       this.errorCount++;
