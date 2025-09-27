@@ -30,12 +30,6 @@ export * from './memory';
 export * from './core/events';
 export * from './config/loader';
 export * from './utils/mermaid';
-
-// Server and client SDK
-export * from './server/types';
-export { createAgentServer } from './server/core';
-export { createHttpServer } from './server/http';
-export { startHttpServer } from './server/http';
-export { createExpressRouter } from './server/express';
-export { AgentClient } from './client';
-export * from './server/sessions';
+// Note: server and client SDKs are available via subpath exports:
+// - `nomos-js/server`
+// - `nomos-js/client`

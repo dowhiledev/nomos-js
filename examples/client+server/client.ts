@@ -1,4 +1,4 @@
-import { AgentClient } from '../../src/index';
+import { AgentClient } from '../../src/client';
 import readline from 'readline';
 
 type Mode = 'stream' | 'next';

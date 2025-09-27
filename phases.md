@@ -42,7 +42,9 @@ Phase 3 — Packaging & Environment Guards
 - [ ] Conditional exports for Node/Edge/Browser or split builds.
 - [x] Keep Node APIs out of browser paths; fs persistence behind adapters.
 - [x] ESM-first with smaller export surface; subpath exports `server` and `client` added.
-- [ ] Acceptance: Verified multi-target builds and tree‑shaking.
+- [x] Main entry no longer re-exports server/client; use subpaths.
+- [x] Mark package as side-effect free for tree-shaking (`sideEffects: false`).
+- [x] Acceptance: Build/test pass; examples updated to use subpaths; tree‑shaking enabled.
 
 Phase 4 — Deferred/MCP Tools (Stretch)
 

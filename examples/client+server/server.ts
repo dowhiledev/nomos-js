@@ -1,4 +1,5 @@
-import { Agent, OpenAILLM, createTool, createHttpServer } from '../../src/index';
+import { Agent, OpenAILLM, createTool } from '../../src/index';
+import { createHttpServer } from '../../src/server';
 import type { EventEmitter, SessionEvent } from '../../src/index';
 import { z } from 'zod';
 import fs from 'fs';
