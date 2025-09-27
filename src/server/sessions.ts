@@ -1,12 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { State } from '../models/schemas';
 
+/** Minimal interface for loading and saving full session state objects. */
 export interface SessionStore {
   load(sessionId: string): Promise<State | null>;
   save(sessionId: string, state: State): Promise<void>;
   delete?(sessionId: string): Promise<void>;
 }
 
+/** In-memory implementation of {@link SessionStore} for development/testing. */
 export class InMemorySessionStore implements SessionStore {
   private map = new Map<string, State>();
   async load(sessionId: string): Promise<State | null> {
@@ -20,12 +22,16 @@ export class InMemorySessionStore implements SessionStore {
   }
 }
 
+/** Options to construct a {@link SessionsManager}. */
 export interface SessionsManagerOptions {
   store: SessionStore;
   generateId?: () => string;
   autoPersist?: boolean;
 }
 
+/**
+ * Helper for resolving and persisting session state for server endpoints.
+ */
 export class SessionsManager {
   private store: SessionStore;
   private generate: () => string;
@@ -38,6 +44,7 @@ export class SessionsManager {
 
   newId(): string { return this.generate(); }
 
+  /** Resolve a state using a provided object or by loading from a store by id. */
   async resolveState(sessionId?: string, provided?: State): Promise<{ sessionId?: string; state?: State }> {
     if (provided) return { sessionId: provided.session_id, state: provided };
     if (sessionId) {
@@ -47,10 +54,10 @@ export class SessionsManager {
     return {};
   }
 
+  /** Persist the state if `persist` is true or autoPersist is enabled. */
   async persist(state: State, persist?: boolean) {
     if (persist || this.autoPersist) {
       await this.store.save(state.session_id, state);
     }
   }
 }
-

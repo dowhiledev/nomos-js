@@ -1,4 +1,5 @@
 import { Agent, OpenAILLM, createTool } from '../src/index';
+import type { State } from '../src/models/schemas';
 import { z } from 'zod';
 import fs from 'fs';
 import readline from 'readline';
@@ -172,7 +173,7 @@ async function main() {
     llm,
   });
 
-  let state: any = undefined;
+  let state: State | undefined = undefined;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('Barista streaming demo. Type your message (or :reset, :help). Ctrl+C to exit.');
   const ask = () => new Promise<string>((resolve) => rl.question('You: ', resolve));

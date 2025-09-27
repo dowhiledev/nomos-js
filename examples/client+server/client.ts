@@ -1,4 +1,6 @@
 import { AgentClient } from '../../src/client';
+import type { State } from '../../src/models/schemas';
+import type { StreamEvent } from '../../src/server/types';
 import readline from 'readline';
 
 type Mode = 'stream' | 'next';
@@ -14,7 +16,7 @@ function parseArgs() {
 }
 
 async function chatStream(client: AgentClient) {
-  let state: any = undefined;
+  let state: State | undefined = undefined;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('Interactive client (stream mode). Type :help for commands.');
   const ask = () => new Promise<string>((resolve) => rl.question('You: ', resolve));
@@ -77,7 +79,7 @@ async function chatStream(client: AgentClient) {
             process.stdout.write((ev as any).response_chunk);
           }
         } else {
-          finalState = ev.state;
+          finalState = ev.state as State;
           finalResponse = ev.response || '';
         }
       }

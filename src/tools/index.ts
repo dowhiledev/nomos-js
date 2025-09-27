@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 // Error taxonomy
+/** Error thrown when a tool receives invalid arguments according to its schema. */
 export class InvalidArgumentsError extends Error {
   code = 'INVALID_ARGUMENTS';
   issues?: unknown;
@@ -11,6 +12,7 @@ export class InvalidArgumentsError extends Error {
   }
 }
 
+/** Error indicating a tool-specific fallback path was taken. */
 export class FallbackError extends Error {
   code = 'FALLBACK';
   constructor(message: string) {
@@ -19,9 +21,11 @@ export class FallbackError extends Error {
   }
 }
 
+/** Execution status for a tool result. */
 export type ToolStatus = 'ok' | 'error' | 'fallback';
 
 // Backward-compatible ToolResult with richer fields
+/** Standard tool execution result shape. */
 export const ToolResultSchema = z.object({
   success: z.boolean(),
   result: z.any(),
@@ -34,6 +38,7 @@ export const ToolResultSchema = z.object({
 export type ToolResult = z.infer<typeof ToolResultSchema>;
 
 // Base Tool interface
+/** A tool callable by the agent at runtime. */
 export interface Tool {
   name: string;
   description: string;
@@ -42,6 +47,7 @@ export interface Tool {
 }
 
 // Function tool wrapper
+/** Wrap a function as a {@link Tool} with Zod validation. */
 export class FunctionTool implements Tool {
   name: string;
   description: string;
@@ -99,6 +105,7 @@ export class FunctionTool implements Tool {
 }
 
 // HTTP API tool
+/** HTTP-based tool that issues a fetch to a configured endpoint. */
 export class HTTPTool implements Tool {
   name: string;
   description: string;
@@ -179,8 +186,10 @@ export class HTTPTool implements Tool {
 }
 
 // Tool registry with optional namespaces and JSON serialization
+/** Minimal serialization format for tool registry entries. */
 export type ToolJSON = { namespace?: string; name: string; description: string };
 
+/** Registry of tools with optional namespaces and (de)serialization helpers. */
 export class ToolRegistry {
   private namespaces: Map<string, Map<string, Tool>> = new Map();
 
@@ -242,6 +251,7 @@ export class ToolRegistry {
 export const toolRegistry = new ToolRegistry();
 
 // Helper function to create tools from functions
+/** Helper to create a function-based {@link Tool}. */
 export function createTool(
   name: string,
   description: string,
@@ -252,6 +262,7 @@ export function createTool(
 }
 
 // Helper function to create HTTP tools
+/** Helper to create an HTTP-based {@link Tool}. */
 export function createHTTPTool(
   name: string,
   description: string,
@@ -268,6 +279,7 @@ export function createHTTPTool(
 // Helpers to sync tools between a registry and an Agent
 import type { Agent } from '../core/agent';
 
+/** Register all tools from a registry (or namespace) onto an {@link Agent}. Returns number added. */
 export function applyRegistryToAgent(
   agent: Agent,
   registry: ToolRegistry,
@@ -278,6 +290,7 @@ export function applyRegistryToAgent(
   return tools.length;
 }
 
+/** Register all tools currently on an {@link Agent} into a registry namespace. Returns number registered. */
 export function registerAgentTools(
   agent: Agent,
   registry: ToolRegistry,

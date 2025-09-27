@@ -7,7 +7,9 @@ import { Session } from './session';
 import type { MemoryAdapter } from '../memory';
 import type { EventEmitter } from './events';
 
-// Agent configuration
+/**
+ * Configuration to construct an Agent.
+ */
 export interface AgentOptions {
   name: string;
   steps: Step[];
@@ -26,7 +28,11 @@ export interface AgentOptions {
   eventEmitter?: EventEmitter;
 }
 
-// Main Agent class
+/**
+ * High-level entry point for building LLM agents with steps, tools, and flows.
+ *
+ * Use {@link Agent.next} for turn-based interaction or {@link Agent.streamNext} for streamed responses.
+ */
 export class Agent {
   public readonly name: string;
   private steps: Map<string, Step>;
@@ -110,7 +116,9 @@ export class Agent {
     }
   }
 
-  // Create a new session
+  /**
+   * Create a new Session, optionally from a previously saved {@link State}.
+   */
   createSession(state?: State): Session {
     return new Session({
       name: this.name,
@@ -133,7 +141,16 @@ export class Agent {
     });
   }
 
-  // Process user input and advance session
+  /**
+   * Run a single turn and return a final response.
+   * @param userInput Optional user input. If omitted, the agent can continue internal actions.
+   * @param sessionData Optional saved {@link State} to restore the session.
+   * @param returnTool When true, include `tool_output` in the response.
+   * @param returnStep When true, include decision step details in the response.
+   * @param verbose When true, include the final decision in the response.
+   * @param constraints Optional decision constraints for the LLM.
+   * @param chainMoves When true, auto-chain MOVE/TOOL_CALL until a text response or safety limit.
+   */
   async next(
     userInput?: string,
     sessionData?: State,
@@ -148,7 +165,10 @@ export class Agent {
     return session.next(userInput, returnTool, returnStep, verbose, constraints, chainMoves);
   }
 
-  // Stream decisions (partial + final)
+  /**
+   * Stream partial updates and a final response for a turn.
+   * Emits reasoning (why), actions, tool_call previews, and response chunks.
+   */
   streamNext(
     userInput?: string,
     sessionData?: State,
@@ -166,7 +186,9 @@ export class Agent {
     return session.streamNext(userInput, returnTool, returnStep, verbose, constraints, chainMoves);
   }
 
-  // Restore a session from adapter history + provided current step id
+  /**
+   * Restore a session from a memory adapter using an id and explicit current step.
+   */
   async restoreSessionFromAdapter(sessionId: string, currentStepId: string): Promise<Session> {
     // Load from configured memoryAdapter
     if (!this['memoryAdapter']) {
@@ -178,17 +200,19 @@ export class Agent {
     return this.createSession({ session_id: sessionId, current_step_id: currentStepId, history });
   }
 
+  /** Persist a full session {@link State} using a configured state adapter. */
   async saveState(state: State): Promise<void> {
     if (!(this as any).stateAdapter) throw new Error('No stateAdapter configured on Agent.');
     await (this as any).stateAdapter.saveState(state.session_id, state);
   }
 
+  /** Load a full session {@link State} by id using a configured state adapter. */
   async loadState(sessionId: string): Promise<State | null> {
     if (!(this as any).stateAdapter) throw new Error('No stateAdapter configured on Agent.');
     return (this as any).stateAdapter.loadState(sessionId);
   }
 
-  // Get agent configuration
+  /** Get the current agent configuration (steps, flows, defaults). */
   getConfig(): AgentConfig {
     return {
       name: this.name,
@@ -203,22 +227,22 @@ export class Agent {
     };
   }
 
-  // Add a tool to the agent
+  /** Add a tool to the agent's registry. */
   addTool(tool: Tool): void {
     this.tools.set(tool.name, tool);
   }
 
-  // Remove a tool from the agent
+  /** Remove a tool by name from the agent's registry. */
   removeTool(toolName: string): boolean {
     return this.tools.delete(toolName);
   }
 
-  // Get available tools
+  /** List tools currently registered on the agent. */
   getTools(): Tool[] {
     return Array.from(this.tools.values());
   }
 
-  // Add a step to the agent
+  /** Add a new step to the agent with validation of route targets and tool references. */
   addStep(step: Step): void {
     // Validate the step
     for (const route of step.routes) {

@@ -1,5 +1,6 @@
 import { Agent, OpenAILLM, createTool } from '../src/index';
 import type { EventEmitter, SessionEvent } from '../src/index';
+import type { State } from '../src/models/schemas';
 import { z } from 'zod';
 import fs from 'fs';
 import readline from 'readline';
@@ -220,7 +221,7 @@ async function main() {
     eventEmitter: emitter as any,
   });
 
-  let state: any = undefined;
+  let state: State | undefined = undefined;
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log(

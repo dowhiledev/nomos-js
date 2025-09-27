@@ -1,11 +1,17 @@
 import type { DecisionConstraints, Response, State } from '../models/schemas';
 import type { StreamEvent } from '../server/types';
 
+/** Options to construct an {@link AgentClient}. */
 export interface AgentClientOptions {
   baseUrl: string; // e.g. http://localhost:8788/api
   headers?: Record<string, string>;
 }
 
+/**
+ * Minimal HTTP client for a Nomos Agent Server.
+ *
+ * Supports non-streaming `next` and NDJSON `stream` endpoints.
+ */
 export class AgentClient {
   private baseUrl: string;
   private headers: Record<string, string>;
@@ -14,6 +20,9 @@ export class AgentClient {
     this.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   }
 
+  /**
+   * Call the server's /next endpoint and return a final response.
+   */
   async next(
     input?: string,
     state?: State,
@@ -38,6 +47,10 @@ export class AgentClient {
     return (await res.json()) as Response;
   }
 
+  /**
+   * Stream events from the server's /stream endpoint.
+   * Yields partial updates (why, action, tool_call, response_chunk) and a final event.
+   */
   async *stream(
     input?: string,
     state?: State,
