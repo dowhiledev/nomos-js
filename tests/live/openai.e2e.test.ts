@@ -46,7 +46,7 @@ const calculatorTool = createTool(
   },
 );
 
-describe('OpenAI e2e (live)', () => {
+describe.skipIf(!process.env.RUN_LIVE)('OpenAI e2e (live)', () => {
   it('performs TOOL_CALL with calculator and returns result', async () => {
     const agent = new Agent({
       name: 'tool_caller',
