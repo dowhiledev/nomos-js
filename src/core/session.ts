@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { z } from 'zod';
 import type {
   State,
   Step,
@@ -8,8 +7,6 @@ import type {
   Decision,
   Message,
   Summary,
-  StepIdentifier,
-  Event,
 } from '../models/schemas';
 import type { LLMBase } from '../llms';
 import type { Tool } from '../tools';
@@ -776,8 +773,6 @@ Action Types:
         const tn = (validated as any).tool_name ?? (validated as any).tool_call?.tool_name;
         const ta = (validated as any).tool_args ?? (validated as any).tool_call?.tool_kwargs ?? {};
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const self: any = this;
           if (tn) {
             // Emit via stream by yielding a partial tool_call update
             // Note: This yield is within an async generator

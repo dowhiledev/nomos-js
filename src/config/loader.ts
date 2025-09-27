@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { z } from 'zod';
 import { Agent } from '../core/agent';
 import type { LLMBase } from '../llms';
 import type { Tool } from '../tools';

@@ -1,6 +1,6 @@
 import type { Step, Flow } from '../models/schemas';
 
-export function agentToMermaid(steps: Step[], flows?: Flow[]): string {
+export function agentToMermaid(steps: Step[], _flows?: Flow[]): string {
   const lines: string[] = [];
   lines.push('flowchart TD');
   // optional: group by flow

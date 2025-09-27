@@ -52,7 +52,6 @@ export class StateMachine {
   set currentStepId(id: string) {
     if (!this.steps.has(id)) throw new Error(`Step '${id}' not found`);
     const prevFlow = this._currentFlowId;
-    const prevStep = this._currentStepId;
     const nextFlow = this.stepToFlow.get(id) || this.steps.get(id)?.flow_id;
     // Validate flow entry/exit against flow configs if present
     if (prevFlow !== nextFlow) {

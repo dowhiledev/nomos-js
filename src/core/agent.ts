@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { StepSchema } from '../models/schemas';
 import type { Step, Flow, AgentConfig, State, Response } from '../models/schemas';
 import type { LLMBase } from '../llms';
@@ -167,12 +166,7 @@ export class Agent {
 
   // Restore a session from adapter history + provided current step id
   async restoreSessionFromAdapter(sessionId: string, currentStepId: string): Promise<Session> {
-    const session = this.createSession({
-      session_id: sessionId,
-      current_step_id: currentStepId,
-      history: [],
-    });
-    const adapter = (session as any).memory?.adapter || (this as any).memoryAdapter;
+    // Load from configured memoryAdapter
     if (!this['memoryAdapter']) {
       throw new Error(
         'No memoryAdapter configured on Agent. Provide one to use restoreSessionFromAdapter.',
