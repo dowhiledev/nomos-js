@@ -16,6 +16,7 @@ import type { Tool } from '../tools';
 import type { DecisionConstraints } from '../models/schemas';
 import { StateMachine } from './state-machine';
 import { Memory } from '../memory';
+import type { EventEmitter } from './events';
 
 // Session configuration
 export interface SessionConfig {
@@ -34,6 +35,7 @@ export interface SessionConfig {
   state?: State;
   memoryAdapter?: import('../memory').MemoryAdapter;
   summarizeEvery?: number;
+  eventEmitter?: EventEmitter;
 }
 
 // Session class for managing agent conversations
@@ -51,6 +53,7 @@ export class Session {
   private showStepsDesc: boolean;
   private maxErrors: number;
   private maxIter: number;
+  private eventEmitter?: EventEmitter;
 
   // Runtime state
   private stateMachine: StateMachine;
@@ -77,6 +80,7 @@ export class Session {
     this.stateMachine = new StateMachine({ steps: this.steps, startStepId: this.startStepId, flows: this.flows });
     if (config.state?.current_step_id) this.stateMachine.currentStepId = config.state.current_step_id;
     this.memory = new Memory(config.state?.history, { adapter: config.memoryAdapter, summarizeEvery: config.summarizeEvery });
+    this.eventEmitter = config.eventEmitter;
   }
 
   get currentStep(): Step {
@@ -372,6 +376,7 @@ Action Types:
             this.memory.addMessage('tool', `Tool ${toolName} result: ${toolOutput}`);
             const cf = this.stateMachine.currentFlowId;
             if (cf) this.memory.addFlowEvent(cf, 'tool', `Tool ${toolName} result: ${toolOutput}`);
+            this.emitEvent('tool_called', { tool_name: toolName, tool_args: toolArgs, result });
 
             // If no explicit assistant response was provided, generate a concise summary
             if (!decision.response) {
@@ -382,6 +387,7 @@ Action Types:
             if (!decision.response) {
               decision.response = `Tried ${toolName} but encountered an error: ${toolOutput}`;
             }
+            this.emitEvent('tool_error', { tool_name: toolName, tool_args: toolArgs, error: String(error) });
           }
         }
         break;
@@ -394,13 +400,16 @@ Action Types:
           if (trans) {
             if (trans.from && trans.from !== trans.to) {
               this.memory.addFlowEvent(trans.from, 'flow_exit', `Exit flow ${trans.from}`);
+              this.emitEvent('flow_exit', { flow_id: trans.from });
             }
             if (trans.to && trans.to !== trans.from) {
               this.memory.addFlowEvent(trans.to, 'flow_enter', `Enter flow ${trans.to}`);
+              this.emitEvent('flow_enter', { flow_id: trans.to });
             }
             const cf = this.stateMachine.currentFlowId;
             if (cf) this.memory.addFlowStep(cf, target);
           }
+          this.emitEvent('step_move', { to: target });
         }
         break;
 
@@ -424,7 +433,17 @@ Action Types:
     } as Response;
     // Persist memory if adapter is set
     await this.memory.persist(this.sessionId);
+    this.emitEvent('decision', { decision });
     return result;
+  }
+
+  private emitEvent(type: string, data?: any, decision?: any) {
+    try {
+      if (!this.eventEmitter) return;
+      this.eventEmitter.emit({ sessionId: this.sessionId, type, data, decision, timestamp: new Date() });
+    } catch {
+      // swallow emitter errors
+    }
   }
 
   // Create response helper

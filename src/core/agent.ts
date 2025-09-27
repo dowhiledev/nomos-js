@@ -12,6 +12,7 @@ import type { DecisionConstraints } from '../models/schemas';
 import type { Tool } from '../tools';
 import { Session } from './session';
 import type { MemoryAdapter } from '../memory';
+import type { EventEmitter } from './events';
 
 // Agent configuration
 export interface AgentOptions {
@@ -29,6 +30,7 @@ export interface AgentOptions {
   embeddingModel?: LLMBase;
   memoryAdapter?: MemoryAdapter;
   summarizeEvery?: number;
+  eventEmitter?: EventEmitter;
 }
 
 // Main Agent class
@@ -47,6 +49,7 @@ export class Agent {
   private embeddingModel: LLMBase;
   private memoryAdapter?: MemoryAdapter;
   private summarizeEvery?: number;
+  private eventEmitter?: EventEmitter;
 
   constructor(options: AgentOptions) {
     this.name = options.name;
@@ -65,6 +68,7 @@ export class Agent {
     this.embeddingModel = options.embeddingModel || options.llm;
     this.memoryAdapter = options.memoryAdapter;
     this.summarizeEvery = options.summarizeEvery;
+    this.eventEmitter = options.eventEmitter;
 
     this.validateConfiguration();
   }
@@ -133,6 +137,7 @@ export class Agent {
       state,
       memoryAdapter: this.memoryAdapter,
       summarizeEvery: this.summarizeEvery,
+      eventEmitter: this.eventEmitter,
     });
   }
 
