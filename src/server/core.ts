@@ -1,28 +1,45 @@
 import type { Agent } from '../core/agent';
 import type { AgentServerOptions, NextRequestBody, StreamEvent } from './types';
+import { SessionsManager } from './sessions';
 
 export function createAgentServer(agent: Agent, options: AgentServerOptions = {}) {
   const base = options.pathBase || '/api';
   const streamCT = options.streamContentType || 'application/x-ndjson';
+  const sessions = options.sessions ? new SessionsManager(options.sessions) : null;
 
   async function handleNext(reqBody: NextRequestBody) {
-    const { userInput, state, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
+    const { userInput, state, sessionId, persist, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
+    let resolvedState = state;
+    if (!resolvedState && sessions && sessionId) {
+      const r = await sessions.resolveState(sessionId, undefined);
+      resolvedState = r.state;
+    }
     const out = await agent.next(
       userInput,
-      state,
+      resolvedState,
       !!returnTool,
       !!returnStep,
       !!verbose,
       constraints,
       !!chainMoves,
     );
+    if (sessions && out.state) {
+      if (sessionId && out.state.session_id !== sessionId) {
+        (out.state as any).session_id = sessionId;
+      }
+      await sessions.persist(out.state, persist);
+    }
     return out;
   }
 
   async function handleStream(reqBody: NextRequestBody, onEvent: (e: StreamEvent) => void) {
-    const { userInput, state, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
+    const { userInput, state, sessionId, persist, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
     let lastAction: string | undefined;
     let lastState: any = state;
+    if (!lastState && sessions && sessionId) {
+      const r = await sessions.resolveState(sessionId, undefined);
+      lastState = r.state;
+    }
 
     async function streamOneTurn(input?: string): Promise<{ hadAnyChunk: boolean; lastAction?: string }> {
       // track partials for preamble ordering only
@@ -107,6 +124,12 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
             response: finalText,
             state: lastState,
           });
+          if (sessions && lastState) {
+            if (sessionId && lastState.session_id !== sessionId) {
+              (lastState as any).session_id = sessionId;
+            }
+            await sessions.persist(lastState, persist);
+          }
         }
         // If we have buffered response and at least one reasoning line has been printed, we can flush preamble now
         if (

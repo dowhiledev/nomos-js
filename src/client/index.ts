@@ -23,6 +23,8 @@ export class AgentClient {
       verbose?: boolean;
       constraints?: DecisionConstraints;
       chainMoves?: boolean;
+      sessionId?: string;
+      persist?: boolean;
     },
   ): Promise<Response> {
     const res = await fetch(this.baseUrl + '/next', {
@@ -45,6 +47,8 @@ export class AgentClient {
       verbose?: boolean;
       constraints?: DecisionConstraints;
       chainMoves?: boolean;
+      sessionId?: string;
+      persist?: boolean;
     },
   ): AsyncIterable<StreamEvent> {
     const res = await fetch(this.baseUrl + '/stream', {

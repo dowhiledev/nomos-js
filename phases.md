@@ -28,6 +28,15 @@ Phase 2 — Nomos Agent Server + Client SDK
 - [x] Subpath exports for server/client in `package.json`; examples updated in README.
 - [x] Acceptance: One‑line boot; client works from Node/browser; streaming end‑to‑end.
 
+Phase 2B — Sessions API (Server/Client)
+
+- [x] SessionsManager with pluggable `SessionStore` interface.
+  - [x] In‑memory `InMemorySessionStore` implementation.
+  - [ ] SQL adapters (Postgres/SQL) via example interface and hooks; provide contract so developers can plug in any store.
+- [x] Server support: accept `sessionId` and `persist` flags; auto‑load state when not provided and auto‑save after responses.
+- [x] Client support: pass `sessionId`/`persist` in `next`/`stream` opts.
+- [ ] Docs: short guide on wiring custom stores and lifecycle hooks.
+
 Phase 3 — Packaging & Environment Guards
 
 - [ ] Conditional exports for Node/Edge/Browser or split builds.

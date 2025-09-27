@@ -38,3 +38,4 @@ export { createHttpServer } from './server/http';
 export { startHttpServer } from './server/http';
 export { createExpressRouter } from './server/express';
 export { AgentClient } from './client';
+export * from './server/sessions';

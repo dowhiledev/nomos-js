@@ -3,6 +3,8 @@ import type { DecisionConstraints, Response, State } from '../models/schemas';
 export interface NextRequestBody {
   userInput?: string;
   state?: State;
+  sessionId?: string;
+  persist?: boolean;
   returnTool?: boolean;
   returnStep?: boolean;
   verbose?: boolean;
@@ -26,4 +28,9 @@ export interface AgentServerOptions {
   pathBase?: string; // default '/api'
   streamContentType?: 'application/x-ndjson' | 'text/event-stream';
   cors?: { origin?: string; allowHeaders?: string[]; allowMethods?: string[] };
+  sessions?: {
+    store: import('./sessions').SessionStore;
+    generateId?: () => string;
+    autoPersist?: boolean;
+  };
 }
