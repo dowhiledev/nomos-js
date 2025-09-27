@@ -36,6 +36,7 @@ export interface SessionConfig {
   memoryAdapter?: import('../memory').MemoryAdapter;
   summarizeEvery?: number;
   eventEmitter?: EventEmitter;
+  stateAdapter?: import('../memory').StateAdapter;
 }
 
 // Session class for managing agent conversations
@@ -54,12 +55,14 @@ export class Session {
   private maxErrors: number;
   private maxIter: number;
   private eventEmitter?: EventEmitter;
+  private stateAdapter?: import('../memory').StateAdapter;
 
   // Runtime state
   private stateMachine: StateMachine;
   private memory: Memory;
   private errorCount: number = 0;
   private iterationCount: number = 0;
+  private flowEntryStepId?: string;
 
   constructor(config: SessionConfig) {
     this.sessionId = config.state?.session_id || `${config.name}_${uuidv4()}`;
@@ -81,6 +84,7 @@ export class Session {
     if (config.state?.current_step_id) this.stateMachine.currentStepId = config.state.current_step_id;
     this.memory = new Memory(config.state?.history, { adapter: config.memoryAdapter, summarizeEvery: config.summarizeEvery });
     this.eventEmitter = config.eventEmitter;
+    this.stateAdapter = config.stateAdapter;
   }
 
   get currentStep(): Step {
@@ -89,12 +93,34 @@ export class Session {
 
   // Get current session state
   getState(): State {
-    return {
+    const base: State = {
       session_id: this.sessionId,
       current_step_id: this.stateMachine.currentStepId,
       history: this.memory.getHistory(),
-      // flow_state: // TODO: Implement flow state
-    };
+    } as any;
+    const cf = this.stateMachine.currentFlowId;
+    if (cf) {
+      const ctx = this.memory.getFlowContext(cf) || { metadata: {}, variables: {} };
+      (base as any).flow_state = {
+        flow_id: cf,
+        flow_context: {
+          flow_id: cf,
+          entry_step: this.flowEntryStepId,
+          current_step_id: this.stateMachine.currentStepId,
+          variables: ctx.variables,
+          metadata: ctx.metadata,
+          previous_context: this.computePreviousContext(),
+        },
+        flow_memory_context: this.memory.getFlowHistory(cf),
+      };
+    }
+    return base;
+  }
+
+  private computePreviousContext(): Array<Message | Summary> {
+    const hist = this.memory.getHistory();
+    const prev = hist.filter(i => ('type' in i) || ('summary' in i)).slice(-5) as Array<Message | Summary>;
+    return prev;
   }
 
   // Execute a tool
@@ -401,10 +427,12 @@ Action Types:
             if (trans.from && trans.from !== trans.to) {
               this.memory.addFlowEvent(trans.from, 'flow_exit', `Exit flow ${trans.from}`);
               this.emitEvent('flow_exit', { flow_id: trans.from });
+              this.flowEntryStepId = undefined;
             }
             if (trans.to && trans.to !== trans.from) {
               this.memory.addFlowEvent(trans.to, 'flow_enter', `Enter flow ${trans.to}`);
               this.emitEvent('flow_enter', { flow_id: trans.to });
+              this.flowEntryStepId = target;
             }
             const cf = this.stateMachine.currentFlowId;
             if (cf) this.memory.addFlowStep(cf, target);

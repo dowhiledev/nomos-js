@@ -27,3 +27,4 @@ export type {
 export type { LLMBase, LLMConfig } from './llms';
 export type { Tool, ToolResult } from './tools';
 export * from './memory';
+export * from './core/events';

@@ -1,4 +1,4 @@
-import { Agent, OpenAILLM, createTool, FsAdapter } from '../src/index';
+import { Agent, OpenAILLM, createTool, FsAdapter, FsStateAdapter } from '../src/index';
 import { z } from 'zod';
 import fs from 'fs';
 
@@ -28,7 +28,7 @@ async function main() {
     { step_id: 'end', description: 'End.', routes: [] },
   ];
 
-  const agent = new Agent({ name: 'persist_demo', steps, startStepId: 'start', tools: [timeTool], llm, memoryAdapter: new FsAdapter('.nomos') });
+  const agent = new Agent({ name: 'persist_demo', steps, startStepId: 'start', tools: [timeTool], llm, memoryAdapter: new FsAdapter('.nomos'), stateAdapter: new FsStateAdapter('.nomos') as any });
 
   // Phase 1: Start and ask for time
   let res = await agent.next('Please tell me the current time.', undefined, true, false, true);
@@ -38,16 +38,16 @@ async function main() {
 
   const sessionId = res.state.session_id;
   const currentState = res.state;
+  // Save full state via state adapter
+  await (new FsStateAdapter('.nomos')).saveState(sessionId, currentState as any);
 
   // Phase 2: Simulate new process by creating a new agent and restoring from disk
-  const adapter = new FsAdapter('.nomos');
-  const history = await adapter.load(sessionId);
-  const restoredState = { ...currentState, history };
-  let res2 = await agent.next(undefined, restoredState, true, false, true);
+  const stateAdapter = new FsStateAdapter('.nomos');
+  const restored = await stateAdapter.loadState(sessionId);
+  let res2 = await agent.next(undefined, restored as any, true, false, true);
   console.log('Phase2 Decision:', res2.decision);
   if (res2.tool_output) console.log('Phase2 Tool Output:', res2.tool_output);
   console.log('Phase2 Assistant:', res2.response);
 }
 
 main().catch(console.error);
-

@@ -1,4 +1,4 @@
-import type { Message, Summary, StepIdentifier, Event } from '../models/schemas';
+import type { Message, Summary, StepIdentifier, Event, State } from '../models/schemas';
 
 export type MemoryItem = Message | Summary | StepIdentifier | Event;
 
@@ -22,6 +22,7 @@ export class Memory {
   private adapter?: MemoryAdapter;
   private summarizeEvery: number;
   private flowStore: Map<string, MemoryItem[]> = new Map();
+  private flowCtx: Map<string, { entry_step?: string; entry_time?: string; metadata: Record<string, any>; variables: Record<string, any> }> = new Map();
 
   constructor(initial?: MemoryItem[], opts?: { adapter?: MemoryAdapter; summarizeEvery?: number }) {
     if (initial && initial.length) this.items = [...initial];
@@ -72,6 +73,20 @@ export class Memory {
     return this.flowStore.get(flowId) || [];
   }
 
+  setFlowContext(flowId: string, ctx: { entry_step?: string; entry_time?: string; metadata?: Record<string, any>; variables?: Record<string, any> }) {
+    const prev = this.flowCtx.get(flowId) || { metadata: {}, variables: {} };
+    this.flowCtx.set(flowId, {
+      entry_step: ctx.entry_step ?? prev.entry_step,
+      entry_time: ctx.entry_time ?? prev.entry_time,
+      metadata: { ...prev.metadata, ...(ctx.metadata || {}) },
+      variables: { ...prev.variables, ...(ctx.variables || {}) },
+    });
+  }
+
+  getFlowContext(flowId: string): { entry_step?: string; entry_time?: string; metadata: Record<string, any>; variables: Record<string, any> } | undefined {
+    return this.flowCtx.get(flowId);
+  }
+
   async persist(sessionId: string) {
     if (this.adapter) await this.adapter.save(sessionId, this.items);
   }
@@ -87,6 +102,33 @@ export class Memory {
     const keep = this.items.slice(-Math.floor(this.summarizeEvery / 2));
     const summary = messages.slice(0, Math.floor(messages.length / 2)).map(m => `${m.role}: ${m.content}`);
     this.items = [...keep, { summary, timestamp: new Date() } as Summary];
+  }
+}
+
+// State persistence (full state)
+export interface StateAdapter {
+  saveState(sessionId: string, state: State): Promise<void>;
+  loadState(sessionId: string): Promise<State | null>;
+}
+
+export class FsStateAdapter implements StateAdapter {
+  private dir: string;
+  constructor(dir: string = '.nomos') { this.dir = dir; }
+  async saveState(sessionId: string, state: State): Promise<void> {
+    const { promises: fs } = await import('fs');
+    const { join } = await import('path');
+    await fs.mkdir(this.dir, { recursive: true });
+    await fs.writeFile(join(this.dir, `${sessionId}.state.json`), JSON.stringify(state, null, 2), 'utf8');
+  }
+  async loadState(sessionId: string): Promise<State | null> {
+    try {
+      const { promises: fs } = await import('fs');
+      const { join } = await import('path');
+      const raw = await fs.readFile(join(this.dir, `${sessionId}.state.json`), 'utf8');
+      return JSON.parse(raw) as State;
+    } catch {
+      return null;
+    }
   }
 }
 

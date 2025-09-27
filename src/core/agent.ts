@@ -50,6 +50,7 @@ export class Agent {
   private memoryAdapter?: MemoryAdapter;
   private summarizeEvery?: number;
   private eventEmitter?: EventEmitter;
+  private stateAdapter?: import('../memory').StateAdapter;
 
   constructor(options: AgentOptions) {
     this.name = options.name;
@@ -69,6 +70,7 @@ export class Agent {
     this.memoryAdapter = options.memoryAdapter;
     this.summarizeEvery = options.summarizeEvery;
     this.eventEmitter = options.eventEmitter;
+    this.stateAdapter = (options as any).stateAdapter;
 
     this.validateConfiguration();
   }
@@ -138,6 +140,7 @@ export class Agent {
       memoryAdapter: this.memoryAdapter,
       summarizeEvery: this.summarizeEvery,
       eventEmitter: this.eventEmitter,
+      stateAdapter: this.stateAdapter,
     });
   }
 
@@ -168,6 +171,17 @@ export class Agent {
   ): AsyncIterable<{ type: 'partial' | 'final'; decision?: Response['decision']; response?: Response }> {
     const session = sessionData ? this.createSession(sessionData) : this.createSession();
     return session.streamNext(userInput, returnTool, returnStep, verbose, constraints);
+  }
+
+  // Restore a session from adapter history + provided current step id
+  async restoreSessionFromAdapter(sessionId: string, currentStepId: string): Promise<Session> {
+    const session = this.createSession({ session_id: sessionId, current_step_id: currentStepId, history: [] });
+    const adapter = (session as any).memory?.adapter || (this as any).memoryAdapter;
+    if (!this['memoryAdapter']) {
+      throw new Error('No memoryAdapter configured on Agent. Provide one to use restoreSessionFromAdapter.');
+    }
+    const history = await (this as any).memoryAdapter.load(sessionId);
+    return this.createSession({ session_id: sessionId, current_step_id: currentStepId, history });
   }
 
   // Get agent configuration
