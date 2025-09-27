@@ -13,12 +13,12 @@ Phase 2 — Packaging & Environments
 - ESM/CJS interop checks and small packaging polish (files, exports map).
 - Acceptance: Browser build excludes Node adapters; edge/server use correct entries; examples run in all targets.
 
-Phase 3 — Config Loading & Visualization
+Phase 3 — Config Loading & Visualization (Completed)
 - Config loader utilities (YAML/JSON):
   - Map Python fields (id/desc/paths/tools) → TS (step_id/description/routes/available_tools).
   - Validate with Zod; helpful error messages and defaults.
-- Mermaid graph utility to render agent steps/flows/tools as a string; optional CLI to write SVG.
-- Acceptance: Loader can build agents from barista‑style YAML; mermaid string produced; CLI writes an SVG.
+- Mermaid graph utility to render agent steps/flows/tools as a string; sample CLI to print Mermaid code.
+- Acceptance: Loader builds agents from barista‑style YAML; mermaid string produced; CLI outputs Mermaid.
 
 Phase 4 — Docs & Telemetry
 - Documentation:
@@ -30,4 +30,3 @@ Phase 4 — Docs & Telemetry
 Notes
 - Completed items (models, LLMs, memory/state persistence, state machine + flows, decision engine, session events, demos/tests) are archived in phases.old.md and the codebase.
 - This roadmap focuses only on the remaining high‑value work to reach parity and robust DX.
-
