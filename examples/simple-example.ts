@@ -1,9 +1,24 @@
-import {
-  Agent,
-  OpenAILLM,
-  createTool,
-} from '../src/index';
+import { Agent, OpenAILLM, createTool } from '../src/index';
 import { z } from 'zod';
+import fs from 'fs';
+
+// Load .env.local if present (for OPENAI_API_KEY)
+try {
+  if (!process.env.OPENAI_API_KEY && fs.existsSync('.env.local')) {
+    const content = fs.readFileSync('.env.local', 'utf8');
+    for (const line of content.split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m) {
+        const key = m[1];
+        let val = m[2];
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('\'') && val.endsWith('\''))) {
+          val = val.slice(1, -1);
+        }
+        process.env[key] = process.env[key] ?? val;
+      }
+    }
+  }
+} catch {}
 
 /**
  * Simple NOMOS Agent Example
@@ -15,7 +30,7 @@ import { z } from 'zod';
 // 1. Configure your LLM
 const llm = new OpenAILLM({
   provider: 'openai',
-  model: 'gpt-4',
+  model: 'gpt-4o-mini',
   apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here',
 });
 

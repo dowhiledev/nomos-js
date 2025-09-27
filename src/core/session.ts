@@ -49,7 +49,7 @@ export class Session {
 
   // Runtime state
   private currentStepId: string;
-  private history: Array<Message | Summary | StepIdentifier> = [];
+  private history: Array<Message | Summary | StepIdentifier | Event> = [];
   private errorCount: number = 0;
   private iterationCount: number = 0;
 
@@ -269,6 +269,8 @@ Action Types:
           return `${item.role}: ${item.content}`;
         } else if ('summary' in item) {
           return `Summary: ${item.summary.join(' ')}`;
+        } else if ('type' in item) {
+          return `Event[${item.type}]: ${'content' in item ? (item as any).content : ''}`;
         } else {
           return `Step: ${item.step_id}`;
         }
@@ -296,6 +298,7 @@ Action Types:
             this.history.push({
               role: 'tool',
               content: `Tool ${decision.tool_name} result: ${toolOutput}`,
+              timestamp: new Date(),
             });
           } catch (error) {
             toolOutput = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -320,6 +323,7 @@ Action Types:
       this.history.push({
         role: 'assistant',
         content: decision.response,
+        timestamp: new Date(),
       });
     }
 
@@ -340,6 +344,7 @@ Action Types:
       this.history.push({
         role: 'assistant',
         content: response,
+        timestamp: new Date(),
       });
     }
 

@@ -1,4 +1,4 @@
-import { generateText, embed, LanguageModel, EmbeddingModel } from 'ai';
+import { generateText, embed } from 'ai';
 import { z } from 'zod';
 
 // Base LLM interface
@@ -15,118 +15,100 @@ export const LLMConfigSchema = z.object({
   baseURL: z.string().optional(),
   temperature: z.number().default(0.7),
   maxTokens: z.number().default(1000),
+  embeddingModel: z.string().optional(),
 });
 
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
 
-// OpenAI implementation
+// OpenAI implementation using @ai-sdk/openai (loaded dynamically)
 export class OpenAILLM implements LLMBase {
-  private model: LanguageModel;
-  private embeddingModel: EmbeddingModel;
-
+  private config: LLMConfig;
   constructor(config: LLMConfig) {
-    // Note: In actual implementation, these would be imported from @ai-sdk/openai
-    // This is a simplified version for the prototype
-    this.model = {
-      specificationVersion: 'v1',
-      provider: 'openai',
-      modelId: config.model,
-      defaultObjectGenerationMode: 'json',
-      doGenerate: async (options) => {
-        // Mock implementation - would use actual AI SDK
-        return {
-          text: `Mock response for: ${options.prompt}`,
-          finishReason: 'stop',
-          usage: { promptTokens: 10, completionTokens: 20 },
-          rawCall: { rawPrompt: options.prompt, rawSettings: {} },
-          warnings: [],
-        };
-      },
-    } as LanguageModel;
+    this.config = config;
+  }
 
-    this.embeddingModel = {
-      specificationVersion: 'v1',
-      provider: 'openai',
-      modelId: 'text-embedding-ada-002',
-      maxEmbeddingsPerCall: 100,
-      doEmbed: async (values) => {
-        // Mock implementation
-        return {
-          embeddings: values.map(() => Array.from({ length: 1536 }, () => Math.random())),
-        };
-      },
-    } as EmbeddingModel;
+  private async getProvider() {
+    try {
+      const mod = await import('@ai-sdk/openai');
+      if ('createOpenAI' in mod) {
+        const createOpenAI = (mod as any).createOpenAI as (opts: any) => (modelId: string) => any;
+        return createOpenAI({ apiKey: this.config.apiKey, baseURL: this.config.baseURL });
+      }
+      // Fallback to default provider using env vars
+      return (mod as any).openai as (modelId: string) => any;
+    } catch (e) {
+      throw new Error('Please install @ai-sdk/openai to use OpenAILLM.');
+    }
   }
 
   async generateText(prompt: string, options?: Record<string, any>): Promise<string> {
+    const provider = await this.getProvider();
+    const model = provider(this.config.model);
     const result = await generateText({
-      model: this.model,
+      model,
       prompt,
-      ...options,
+      temperature: this.config.temperature,
+      maxTokens: this.config.maxTokens,
+      ...(options || {}),
     });
     return result.text;
   }
 
   async embedText(text: string): Promise<number[]> {
-    const result = await embed({
-      model: this.embeddingModel,
-      value: text,
-    });
+    const provider = await this.getProvider();
+    const embeddingId = this.config.embeddingModel || 'text-embedding-3-small';
+    const embeddingModel = (provider as any).embedding
+      ? (provider as any).embedding(embeddingId)
+      : // If provider() returns a function only for text models, use default openai().embedding
+        (await import('@ai-sdk/openai')).openai.embedding(embeddingId);
+
+    const result = await embed({ model: embeddingModel, value: text });
     return result.embedding;
   }
 }
 
-// Anthropic implementation
+// Anthropic implementation using @ai-sdk/anthropic; embeddings via OpenAI fallback
 export class AnthropicLLM implements LLMBase {
-  private model: LanguageModel;
-  private embeddingModel: EmbeddingModel;
-
+  private config: LLMConfig;
   constructor(config: LLMConfig) {
-    // Similar mock implementation for Anthropic
-    this.model = {
-      specificationVersion: 'v1',
-      provider: 'anthropic',
-      modelId: config.model,
-      defaultObjectGenerationMode: 'json',
-      doGenerate: async (options) => {
-        return {
-          text: `Mock Anthropic response for: ${options.prompt}`,
-          finishReason: 'stop',
-          usage: { promptTokens: 10, completionTokens: 20 },
-          rawCall: { rawPrompt: options.prompt, rawSettings: {} },
-          warnings: [],
-        };
-      },
-    } as LanguageModel;
+    this.config = config;
+  }
 
-    // Anthropic doesn't have built-in embeddings, using OpenAI's for now
-    this.embeddingModel = {
-      specificationVersion: 'v1',
-      provider: 'openai',
-      modelId: 'text-embedding-ada-002',
-      maxEmbeddingsPerCall: 100,
-      doEmbed: async (values) => {
-        return {
-          embeddings: values.map(() => Array.from({ length: 1536 }, () => Math.random())),
-        };
-      },
-    } as EmbeddingModel;
+  private async getProvider() {
+    try {
+      const mod = await import('@ai-sdk/anthropic');
+      if ('createAnthropic' in mod) {
+        const createAnthropic = (mod as any).createAnthropic as (opts: any) => (modelId: string) => any;
+        return createAnthropic({ apiKey: this.config.apiKey, baseURL: this.config.baseURL });
+      }
+      return (mod as any).anthropic as (modelId: string) => any;
+    } catch (e) {
+      throw new Error('Please install @ai-sdk/anthropic to use AnthropicLLM.');
+    }
   }
 
   async generateText(prompt: string, options?: Record<string, any>): Promise<string> {
+    const provider = await this.getProvider();
+    const model = provider(this.config.model);
     const result = await generateText({
-      model: this.model,
+      model,
       prompt,
-      ...options,
+      temperature: this.config.temperature,
+      maxTokens: this.config.maxTokens,
+      ...(options || {}),
     });
     return result.text;
   }
 
   async embedText(text: string): Promise<number[]> {
-    const result = await embed({
-      model: this.embeddingModel,
-      value: text,
-    });
+    // Fallback to OpenAI embeddings
+    const openaiMod = await import('@ai-sdk/openai');
+    const embeddingId = this.config.embeddingModel || 'text-embedding-3-small';
+    const provider = 'createOpenAI' in openaiMod
+      ? (openaiMod as any).createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      : (openaiMod as any).openai;
+    const embeddingModel = provider.embedding(embeddingId);
+    const result = await embed({ model: embeddingModel, value: text });
     return result.embedding;
   }
 }

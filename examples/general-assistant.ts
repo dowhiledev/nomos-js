@@ -1,15 +1,29 @@
-import {
-  Agent,
-  OpenAILLM,
-  createTool,
-  createHTTPTool,
-} from '../src/index';
+import { Agent, OpenAILLM, createTool, createHTTPTool } from '../src/index';
 import { z } from 'zod';
+import fs from 'fs';
+
+// Load .env.local if present (for OPENAI_API_KEY) without extra deps
+try {
+  if (!process.env.OPENAI_API_KEY && fs.existsSync('.env.local')) {
+    const content = fs.readFileSync('.env.local', 'utf8');
+    for (const line of content.split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m) {
+        const key = m[1];
+        let val = m[2];
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('\'') && val.endsWith('\''))) {
+          val = val.slice(1, -1);
+        }
+        process.env[key] = process.env[key] ?? val;
+      }
+    }
+  }
+} catch {}
 
 // Define LLM configuration
 const llmConfig = {
   provider: 'openai' as const,
-  model: 'gpt-4',
+  model: 'gpt-4o-mini',
   apiKey: process.env.OPENAI_API_KEY!,
   temperature: 0.7,
   maxTokens: 1000,
