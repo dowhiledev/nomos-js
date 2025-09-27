@@ -14,6 +14,8 @@ import type {
 import type { LLMBase } from '../llms';
 import type { Tool } from '../tools';
 import type { DecisionConstraints } from '../models/schemas';
+import { StateMachine } from './state-machine';
+import { Memory } from '../memory';
 
 // Session configuration
 export interface SessionConfig {
@@ -49,8 +51,8 @@ export class Session {
   private maxIter: number;
 
   // Runtime state
-  private currentStepId: string;
-  private history: Array<Message | Summary | StepIdentifier | Event> = [];
+  private stateMachine: StateMachine;
+  private memory: Memory;
   private errorCount: number = 0;
   private iterationCount: number = 0;
 
@@ -69,29 +71,22 @@ export class Session {
     this.maxErrors = config.maxErrors || 3;
     this.maxIter = config.maxIter || 5;
 
-    // Initialize state
-    if (config.state) {
-      this.currentStepId = config.state.current_step_id;
-      this.history = config.state.history;
-    } else {
-      this.currentStepId = this.startStepId;
-    }
+    // Initialize state machine and memory
+    this.stateMachine = new StateMachine({ steps: this.steps, startStepId: this.startStepId, flows: this.flows });
+    if (config.state?.current_step_id) this.stateMachine.currentStepId = config.state.current_step_id;
+    this.memory = new Memory(config.state?.history);
   }
 
   get currentStep(): Step {
-    const step = this.steps.get(this.currentStepId);
-    if (!step) {
-      throw new Error(`Step ${this.currentStepId} not found`);
-    }
-    return step;
+    return this.stateMachine.currentStep;
   }
 
   // Get current session state
   getState(): State {
     return {
       session_id: this.sessionId,
-      current_step_id: this.currentStepId,
-      history: this.history,
+      current_step_id: this.stateMachine.currentStepId,
+      history: this.memory.getHistory(),
       // flow_state: // TODO: Implement flow state
     };
   }
@@ -300,7 +295,7 @@ Action Types:
     try {
       // Record user input into history for context
       if (userInput && userInput.trim().length > 0) {
-        this.history.push({ role: 'user', content: userInput, timestamp: new Date() });
+        this.memory.addMessage('user', userInput);
       }
       // Generate decision
       const context = this.buildContext();
@@ -333,7 +328,7 @@ Action Types:
   // Build context from history
   private buildContext(): string {
     // Simple context building - could be enhanced with summarization
-    const recentMessages = this.history.slice(-5); // Last 5 items
+    const recentMessages = this.memory.getHistory().slice(-5); // Last 5 items
     return recentMessages
       .map(item => {
         if ('role' in item) {
@@ -370,11 +365,7 @@ Action Types:
             toolOutput = JSON.stringify(result);
 
             // Add tool result to history
-            this.history.push({
-              role: 'tool',
-              content: `Tool ${toolName} result: ${toolOutput}`,
-              timestamp: new Date(),
-            });
+            this.memory.addMessage('tool', `Tool ${toolName} result: ${toolOutput}`);
 
             // If no explicit assistant response was provided, generate a concise summary
             if (!decision.response) {
@@ -391,8 +382,8 @@ Action Types:
 
       case 'MOVE':
         if (target) {
-          this.currentStepId = target;
-          this.history.push({ step_id: target });
+          this.stateMachine.currentStepId = target;
+          this.memory.addStep(target);
         }
         break;
 
@@ -403,11 +394,7 @@ Action Types:
 
     // Add user input to history if provided
     if (decision.response) {
-      this.history.push({
-        role: 'assistant',
-        content: decision.response,
-        timestamp: new Date(),
-      });
+      this.memory.addMessage('assistant', decision.response);
     }
 
     return {
@@ -424,11 +411,7 @@ Action Types:
     action: 'RESPOND' | 'END' = 'RESPOND'
   ): Response {
     if (action === 'RESPOND') {
-      this.history.push({
-        role: 'assistant',
-        content: response,
-        timestamp: new Date(),
-      });
+      this.memory.addMessage('assistant', response);
     }
 
     return {
