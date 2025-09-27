@@ -251,7 +251,16 @@ export class ToolRegistry {
 export const toolRegistry = new ToolRegistry();
 
 // Helper function to create tools from functions
-/** Helper to create a function-based {@link Tool}. */
+/**
+ * Helper to create a function-based {@link Tool}.
+ * @param name Tool name.
+ * @param description Human-friendly description.
+ * @param parameters Zod schema for arguments.
+ * @param fn Async function implementation. Receives parsed args.
+ * @returns A Tool instance.
+ * @example
+ * const ping = createTool('ping', 'Ping tool', z.object({ text: z.string() }), async ({ text }) => text);
+ */
 export function createTool(
   name: string,
   description: string,
@@ -262,7 +271,14 @@ export function createTool(
 }
 
 // Helper function to create HTTP tools
-/** Helper to create an HTTP-based {@link Tool}. */
+/**
+ * Helper to create an HTTP-based {@link Tool}.
+ * @param name Tool name.
+ * @param description Human-friendly description.
+ * @param parameters Zod schema for arguments.
+ * @param config HTTP config with url/method/headers.
+ * @returns A Tool instance that performs a fetch call.
+ */
 export function createHTTPTool(
   name: string,
   description: string,
@@ -279,7 +295,10 @@ export function createHTTPTool(
 // Helpers to sync tools between a registry and an Agent
 import type { Agent } from '../core/agent';
 
-/** Register all tools from a registry (or namespace) onto an {@link Agent}. Returns number added. */
+/**
+ * Register all tools from a registry (or namespace) onto an {@link Agent}.
+ * @returns Number of tools added.
+ */
 export function applyRegistryToAgent(
   agent: Agent,
   registry: ToolRegistry,
@@ -290,7 +309,10 @@ export function applyRegistryToAgent(
   return tools.length;
 }
 
-/** Register all tools currently on an {@link Agent} into a registry namespace. Returns number registered. */
+/**
+ * Register all tools currently on an {@link Agent} into a registry namespace.
+ * @returns Number of tools registered.
+ */
 export function registerAgentTools(
   agent: Agent,
   registry: ToolRegistry,

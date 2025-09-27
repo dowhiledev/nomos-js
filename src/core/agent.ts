@@ -9,6 +9,8 @@ import type { EventEmitter } from './events';
 
 /**
  * Configuration to construct an Agent.
+ *
+ * @public
  */
 export interface AgentOptions {
   name: string;
@@ -32,6 +34,11 @@ export interface AgentOptions {
  * High-level entry point for building LLM agents with steps, tools, and flows.
  *
  * Use {@link Agent.next} for turn-based interaction or {@link Agent.streamNext} for streamed responses.
+ *
+ * @example
+ * const agent = new Agent({ name: 'demo', steps, startStepId: 'start', llm });
+ * const res = await agent.next('Hello');
+ * console.log(res.response);
  */
 export class Agent {
   public readonly name: string;
@@ -118,6 +125,12 @@ export class Agent {
 
   /**
    * Create a new Session, optionally from a previously saved {@link State}.
+   *
+   * @param state Optional previously saved state to restore.
+   * @returns A new Session instance configured from this Agent.
+   * @example
+   * const session = agent.createSession(savedState);
+   * const res = await session.next('Hi');
    */
   createSession(state?: State): Session {
     return new Session({
@@ -143,6 +156,7 @@ export class Agent {
 
   /**
    * Run a single turn and return a final response.
+   *
    * @param userInput Optional user input. If omitted, the agent can continue internal actions.
    * @param sessionData Optional saved {@link State} to restore the session.
    * @param returnTool When true, include `tool_output` in the response.
@@ -150,6 +164,10 @@ export class Agent {
    * @param verbose When true, include the final decision in the response.
    * @param constraints Optional decision constraints for the LLM.
    * @param chainMoves When true, auto-chain MOVE/TOOL_CALL until a text response or safety limit.
+   * @returns The final {@link Response} for the turn.
+   * @example
+   * const res = await agent.next('Order coffee', undefined, true);
+   * console.log(res.state.current_step_id);
    */
   async next(
     userInput?: string,
@@ -168,6 +186,19 @@ export class Agent {
   /**
    * Stream partial updates and a final response for a turn.
    * Emits reasoning (why), actions, tool_call previews, and response chunks.
+   *
+   * @param userInput Optional user input.
+   * @param sessionData Optional saved {@link State} to restore the session.
+   * @param returnTool When true, include `tool_output` in the final response.
+   * @param returnStep When true, include decision step details in the final response.
+   * @param verbose When true, include the final decision in the final response.
+   * @param constraints Optional decision constraints for the LLM.
+   * @param chainMoves When true, auto-chain MOVE/TOOL_CALL across streamed turns.
+   * @returns Async iterable of partial and final events.
+   * @example
+   * for await (const ev of agent.streamNext('Hello')) {
+   *   if (ev.type === 'partial' && ev.response) process.stdout.write(ev.response.response || '');
+   * }
    */
   streamNext(
     userInput?: string,
@@ -188,6 +219,10 @@ export class Agent {
 
   /**
    * Restore a session from a memory adapter using an id and explicit current step.
+   *
+   * @param sessionId The session identifier used by the memory adapter.
+   * @param currentStepId The current step id to restore.
+   * @returns A new Session instance loaded from history.
    */
   async restoreSessionFromAdapter(sessionId: string, currentStepId: string): Promise<Session> {
     // Load from configured memoryAdapter
@@ -200,13 +235,21 @@ export class Agent {
     return this.createSession({ session_id: sessionId, current_step_id: currentStepId, history });
   }
 
-  /** Persist a full session {@link State} using a configured state adapter. */
+  /**
+   * Persist a full session {@link State} using a configured state adapter.
+   * @param state State object to persist.
+   * @returns A promise that resolves when saved.
+   */
   async saveState(state: State): Promise<void> {
     if (!(this as any).stateAdapter) throw new Error('No stateAdapter configured on Agent.');
     await (this as any).stateAdapter.saveState(state.session_id, state);
   }
 
-  /** Load a full session {@link State} by id using a configured state adapter. */
+  /**
+   * Load a full session {@link State} by id using a configured state adapter.
+   * @param sessionId The session id to load.
+   * @returns The loaded state, or null if not found.
+   */
   async loadState(sessionId: string): Promise<State | null> {
     if (!(this as any).stateAdapter) throw new Error('No stateAdapter configured on Agent.');
     return (this as any).stateAdapter.loadState(sessionId);

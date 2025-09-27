@@ -11,6 +11,10 @@ export interface AgentClientOptions {
  * Minimal HTTP client for a Nomos Agent Server.
  *
  * Supports non-streaming `next` and NDJSON `stream` endpoints.
+ *
+ * @example
+ * const client = new AgentClient({ baseUrl: 'http://localhost:8788/api' });
+ * const res = await client.next('Hello');
  */
 export class AgentClient {
   private baseUrl: string;
@@ -22,6 +26,10 @@ export class AgentClient {
 
   /**
    * Call the server's /next endpoint and return a final response.
+   * @param input Optional user input string.
+   * @param state Optional previously saved state to send.
+   * @param opts Additional flags such as `verbose`, `chainMoves`, `sessionId`, and `persist`.
+   * @returns The final response body from the server.
    */
   async next(
     input?: string,
@@ -50,6 +58,10 @@ export class AgentClient {
   /**
    * Stream events from the server's /stream endpoint.
    * Yields partial updates (why, action, tool_call, response_chunk) and a final event.
+   * @param input Optional user input string.
+   * @param state Optional previously saved state to send.
+   * @param opts Additional flags such as `verbose`, `chainMoves`, `sessionId`, and `persist`.
+   * @returns An async iterator of stream events.
    */
   async *stream(
     input?: string,
