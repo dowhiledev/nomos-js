@@ -1,4 +1,4 @@
-**Public API (nomos-js)**
+**Public API (@dowhiledev/nomos)**
 
 - Core
   - `Agent`, `Session`
@@ -22,8 +22,8 @@
   - `Memory` plus adapters: in-memory, filesystem, localStorage; `StateAdapter` variants
 
 - Server/Client (subpath exports)
-  - `nomos-js/server`: `createAgentServer`, `createHttpServer`, `startHttpServer`, `createExpressRouter`, server `types`
-  - `nomos-js/client`: `AgentClient`
+- `@dowhiledev/nomos/server`: `createAgentServer`, `createHttpServer`, `startHttpServer`, `createExpressRouter`, server `types`
+- `@dowhiledev/nomos/client`: `AgentClient`
 
 - Utilities
   - `agentToMermaid` for visualization

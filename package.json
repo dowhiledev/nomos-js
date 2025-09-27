@@ -1,7 +1,7 @@
 {
-  "name": "nomos-js",
+  "name": "@dowhiledev/nomos",
   "version": "0.1.0",
-  "description": "TypeScript port of the NOMOS agent framework for building LLM-powered assistants",
+  "description": "NOMOS agent framework for building LLM-powered assistants",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

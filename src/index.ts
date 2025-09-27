@@ -31,5 +31,5 @@ export * from './core/events';
 export * from './config/loader';
 export * from './utils/mermaid';
 // Note: server and client SDKs are available via subpath exports:
-// - `nomos-js/server`
-// - `nomos-js/client`
+// - `@dowhiledev/nomos/server`
+// - `@dowhiledev/nomos/client`

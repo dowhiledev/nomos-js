@@ -5,7 +5,7 @@
 
 **Packages & Exports**
 
-- Single package `nomos-js` (ESM) with optional peer deps for providers.
+- Single package `@dowhiledev/nomos` (ESM) with optional peer deps for providers.
 - Public API: `Agent`, `Session`, models/schemas, tools helpers, LLM factory/wrappers.
 
 **Runtime Boundaries**

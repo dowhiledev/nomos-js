@@ -1,4 +1,4 @@
-**Parity Matrix (Python NOMOS → TypeScript, package: nomos-js)**
+**Parity Matrix (Python NOMOS → TypeScript, package: @dowhiledev/nomos)**
 
 - Core
   - Agent: Create/fromConfig/next/session implemented. Decision constraints supported, streaming supported. Logging hooks minimal; OTEL hooks planned.

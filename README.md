@@ -15,7 +15,7 @@ A TypeScript port of the NOMOS agent framework for building advanced LLM-powered
 ## Installation
 
 ```bash
-npm install nomos-js ai zod uuid
+npm install @dowhiledev/nomos ai zod uuid
 # Plus your preferred LLM provider
 npm install @ai-sdk/openai @ai-sdk/anthropic
 ```
@@ -23,7 +23,7 @@ npm install @ai-sdk/openai @ai-sdk/anthropic
 ## Quick Start
 
 ```typescript
-import { Agent, OpenAILLM, createTool } from 'nomos-js';
+import { Agent, OpenAILLM, createTool } from '@dowhiledev/nomos';
 import { z } from 'zod';
 
 // 1. Configure LLM
@@ -166,8 +166,8 @@ const state = session.getState(); // For persistence
 Start a minimal HTTP server and stream responses:
 
 ```ts
-import { createHttpServer } from 'nomos-js/server';
-import { Agent, OpenAILLM } from 'nomos-js';
+import { createHttpServer } from '@dowhiledev/nomos/server';
+import { Agent, OpenAILLM } from '@dowhiledev/nomos';
 
 const agent = new Agent({
   /* ...config... */ llm: new OpenAILLM({ provider: 'openai', model: 'gpt-4' }),
@@ -178,7 +178,7 @@ createHttpServer(agent, { pathBase: '/api' });
 Call it from Node/browser with the client:
 
 ```ts
-import { AgentClient } from 'nomos-js/client';
+import { AgentClient } from '@dowhiledev/nomos/client';
 
 const client = new AgentClient({ baseUrl: 'http://localhost:8788/api' });
 const res = await client.next('Hello');
@@ -190,7 +190,7 @@ for await (const ev of client.stream('Hi')) {
 ### Custom LLM Providers
 
 ```typescript
-import { AnthropicLLM } from 'nomos-js';
+import { AnthropicLLM } from '@dowhiledev/nomos';
 
 const llm = new AnthropicLLM({
   provider: 'anthropic',
@@ -266,7 +266,7 @@ You can define agents declaratively:
 
 ```typescript
 import fs from 'fs';
-import { Agent } from 'nomos-js';
+import { Agent } from '@dowhiledev/nomos';
 
 const config = JSON.parse(fs.readFileSync('agent-config.json', 'utf8'));
 const agent = Agent.fromConfig(config, llm, tools);
