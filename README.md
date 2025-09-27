@@ -10,6 +10,7 @@ A TypeScript port of the NOMOS agent framework for building advanced LLM-powered
 - **Tool Integration**: Create custom tools and integrate external APIs
 - **Session Management**: Built-in conversation state and persistence
 - **Flow Management**: Organize complex workflows with shared context
+- **Server + Client**: Minimal HTTP server with NDJSON streaming and a typed client
 
 ## Installation
 
@@ -159,6 +160,32 @@ const state = session.getState(); // For persistence
 ```
 
 ## Advanced Usage
+
+### Server + Client
+
+Start a minimal HTTP server and stream responses:
+
+```ts
+import { createHttpServer } from 'nomos-js/server';
+import { Agent, OpenAILLM } from 'nomos-js';
+
+const agent = new Agent({
+  /* ...config... */ llm: new OpenAILLM({ provider: 'openai', model: 'gpt-4' }),
+});
+createHttpServer(agent, { pathBase: '/api' });
+```
+
+Call it from Node/browser with the client:
+
+```ts
+import { AgentClient } from 'nomos-js/client';
+
+const client = new AgentClient({ baseUrl: 'http://localhost:8788/api' });
+const res = await client.next('Hello');
+for await (const ev of client.stream('Hi')) {
+  if (ev.type === 'partial' && ev.response_chunk) process.stdout.write(ev.response_chunk);
+}
+```
 
 ### Custom LLM Providers
 

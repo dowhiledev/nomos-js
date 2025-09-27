@@ -99,9 +99,7 @@ export class Memory {
     });
   }
 
-  getFlowContext(
-    flowId: string,
-  ):
+  getFlowContext(flowId: string):
     | {
         entry_step?: string;
         entry_time?: string;

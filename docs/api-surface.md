@@ -1,25 +1,34 @@
-**Public Exports (current and planned)**
+**Public API (nomos-js)**
 
 - Core
   - `Agent`, `Session`
   - `Agent.fromConfig(config, llm, tools?)`
+  - `createTool`, `createHTTPTool`
 
-- Models & Utils
+- Models & Types
   - Schemas: `AgentConfigSchema`, `StepSchema`, `DecisionSchema`, `StateSchema`, `EventSchema`, `FlowSchema`, `DecisionConstraintsSchema`
   - Types: `AgentConfig`, `Step`, `Decision`, `State`, `Event`, `Flow`, `DecisionConstraints`
   - Normalizers: `normalizeAgentConfig`, `normalizeStep`, `normalizeRoute`, `normalizeFlow`
 
-- Tools
-  - Interfaces: `Tool`, `ToolResult`
-  - Helpers: `createTool`, `createHTTPTool`, `toolRegistry`
-
 - LLMs
   - Interfaces: `LLMBase`, `LLMConfig`
-  - Factory: `createLLM`
-  - Providers: `OpenAILLM` (mock), `AnthropicLLM` (mock). Planned: real AI SDK bindings for OpenAI/Anthropic/Google/Ollama
+  - Providers: `OpenAILLM`, `AnthropicLLM` (via AI SDK wrappers)
 
-Planned Additions
+- Tools
+  - Interfaces: `Tool`, `ToolResult`
+  - Registry and helpers re-exported from `./tools`
 
-- `state-machine`: route validation, flow transitions.
-- `memory`: session/flow memory with summarization.
-- `events`: event emitter interface and OpenTelemetry context propagation.
+- Memory
+  - `Memory` plus adapters: in-memory, filesystem, localStorage; `StateAdapter` variants
+
+- Server/Client (subpath exports)
+  - `nomos-js/server`: `createAgentServer`, `createHttpServer`, `startHttpServer`, `createExpressRouter`, server `types`
+  - `nomos-js/client`: `AgentClient`
+
+- Utilities
+  - `agentToMermaid` for visualization
+  - Config loader `createAgentFromConfig`, `toAgentConfig`, `loadFileSync`
+
+Notes
+
+- ESM-first with types in `dist`. Subpath exports available for server/client.
