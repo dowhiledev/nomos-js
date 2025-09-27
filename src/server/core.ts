@@ -22,12 +22,10 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
   async function handleStream(reqBody: NextRequestBody, onEvent: (e: StreamEvent) => void) {
     const { userInput, state, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
     let lastAction: string | undefined;
-    let hadAnyChunk = false;
     let lastState: any = state;
-    let turns = 0;
 
-    async function streamOneTurn(input?: string) {
-      hadAnyChunk = false;
+    async function streamOneTurn(input?: string): Promise<{ hadAnyChunk: boolean; lastAction?: string }> {
+      // track partials for preamble ordering only
       // Enforce order: reasoning -> action -> tool_call -> response
       const printedWhy = new Set<string>();
       const pendingTools: Array<{ tool_name: string; tool_args: Record<string, any> }> = [];
@@ -35,6 +33,7 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
       let preambleFlushed = false;
       let bufferedResponse = '';
       let responseStarted = false;
+      let hadAnyChunk = false;
 
       function flushPreambleIfNeeded() {
         if (preambleFlushed) return;
@@ -84,10 +83,7 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
             pendingTools.push({ tool_name: tc.tool_name, tool_args });
           }
         }
-        if (
-          typeof (upd as any).response_chunk === 'string' &&
-          (upd as any).response_chunk.length > 0
-        ) {
+        if (typeof (upd as any).response_chunk === 'string' && (upd as any).response_chunk.length > 0) {
           hadAnyChunk = true;
           // First time we see response, flush preamble and stop emitting further why/tool
           if (!responseStarted) {
@@ -104,9 +100,11 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
           // Flush preamble (action + tools) before final
           flushPreambleIfNeeded();
           lastState = (upd as any).response.state;
+          const finalText = (upd as any).response.response || '';
+          if (typeof finalText === 'string' && finalText.length > 0) hadAnyChunk = true;
           onEvent({
             type: 'final',
-            response: (upd as any).response.response || '',
+            response: finalText,
             state: lastState,
           });
         }
@@ -119,9 +117,21 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
           flushPreambleIfNeeded();
         }
       }
+      return { hadAnyChunk, lastAction };
     }
 
-    await streamOneTurn(userInput);
+    const first = await streamOneTurn(userInput);
+    // Fallback server-side chaining if requested
+    let safety = 0;
+    while (
+      !!chainMoves &&
+      !first.hadAnyChunk &&
+      (first.lastAction === 'MOVE' || first.lastAction === 'TOOL_CALL') &&
+      safety++ < 3
+    ) {
+      const next = await streamOneTurn(undefined);
+      if (next.hadAnyChunk || (next.lastAction !== 'MOVE' && next.lastAction !== 'TOOL_CALL')) break;
+    }
   }
 
   return {

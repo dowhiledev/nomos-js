@@ -309,22 +309,10 @@ async function main() {
       continue;
     }
 
-    let res = await agent.next(input, state, true, false, true);
+    let res = await agent.next(input, state, true, false, true, undefined, true);
     state = res.state;
     if (res.response) console.log('Assistant:', res.response);
-
-    // Auto-advance on TOOL_CALL or MOVE by sending undefined
-    let safety = 0;
-    while (
-      res.decision &&
-      (res.decision.action === 'TOOL_CALL' || res.decision.action === 'MOVE') &&
-      safety < 5
-    ) {
-      res = await agent.next(undefined, state, true, false, true);
-      state = res.state;
-      if (res.response) console.log('Assistant:', res.response);
-      safety++;
-    }
+    // Auto-chaining enabled via chainMoves flag; no manual loop needed
   }
 }
 

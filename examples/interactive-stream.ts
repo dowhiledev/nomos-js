@@ -191,7 +191,7 @@ async function main() {
     let printedAssistantHeader = false;
     const printedReasons = new Set<string>();
 
-    for await (const upd of agent.streamNext(text, state, true, false, true)) {
+    for await (const upd of agent.streamNext(text, state, true, false, true, undefined, true)) {
       // Action (print only valid explicit actions) BEFORE any assistant text
       if (!printedAssistantHeader && upd.decision && (upd.decision as any).action) {
         const act = (upd.decision as any).action as string;
@@ -270,17 +270,7 @@ async function main() {
       console.log('State cleared.');
       continue;
     }
-    const res = await streamTurn(input);
-    let safety = 0;
-    while (
-      !res.hadAnyChunk &&
-      (res.lastAction === 'MOVE' || res.lastAction === 'TOOL_CALL') &&
-      safety < 3
-    ) {
-      const r2 = await streamTurn(undefined);
-      if (r2.hadAnyChunk || (r2.lastAction !== 'MOVE' && r2.lastAction !== 'TOOL_CALL')) break;
-      safety++;
-    }
+    await streamTurn(input);
   }
 }
 

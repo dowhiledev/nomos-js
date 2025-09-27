@@ -36,54 +36,72 @@ async function chatStream(client: AgentClient) {
       continue;
     }
 
-    const printedWhy = new Set<string>();
-    const printedTool = new Set<string>();
-    let lastAction: string | undefined;
-    let startedAssistant = false;
-    let finalState: any = undefined;
-    let finalResponse: string = '';
+    let inputToSend: string | undefined = text;
+    let safety = 0;
+    do {
+      const printedWhy = new Set<string>();
+      const printedTool = new Set<string>();
+      const printedAction = new Set<string>();
+      let lastAction: string | undefined;
+      let startedAssistant = false;
+      let finalState: any = undefined;
+      let finalResponse: string = '';
 
-    for await (const ev of client.stream(text, state, { verbose: true })) {
-      if (ev.type === 'partial') {
-        // Print why/tool as they appear (deduped), before any response text
-        if (typeof ev.why === 'string' && ev.why.trim() && !printedWhy.has(ev.why)) {
-          console.log(`{why:${ev.why}}`);
-          printedWhy.add(ev.why);
-        }
-        if ((ev as any).tool_call) {
-          const tc = (ev as any).tool_call as { tool_name: string; tool_args: Record<string, any> };
-          const key = `${tc.tool_name}:${JSON.stringify(tc.tool_args || {})}`;
-          if (!printedTool.has(key)) {
-            console.log(`(tool) ${tc.tool_name} ${JSON.stringify(tc.tool_args || {})}`);
-            printedTool.add(key);
+      for await (const ev of client.stream(inputToSend, state, { verbose: true, chainMoves: true })) {
+        if (ev.type === 'partial') {
+          // Print why/tool as they appear (deduped), before any response text
+          if (typeof ev.why === 'string' && ev.why.trim() && !printedWhy.has(ev.why)) {
+            console.log(`{why:${ev.why}}`);
+            printedWhy.add(ev.why);
           }
-        }
-        if (ev.action) lastAction = ev.action;
-        if (typeof (ev as any).response_chunk === 'string') {
-          if (!startedAssistant) {
-            process.stdout.write('Assistant: ');
-            startedAssistant = true;
+          if ((ev as any).tool_call) {
+            const tc = (ev as any).tool_call as { tool_name: string; tool_args: Record<string, any> };
+            const key = `${tc.tool_name}:${JSON.stringify(tc.tool_args || {})}`;
+            if (!printedTool.has(key)) {
+              console.log(`(tool) ${tc.tool_name} ${JSON.stringify(tc.tool_args || {})}`);
+              printedTool.add(key);
+            }
           }
-          process.stdout.write((ev as any).response_chunk);
+          if (ev.action) {
+            lastAction = ev.action;
+            if (!printedAction.has(ev.action)) {
+              console.log(`(action) ${ev.action}`);
+              printedAction.add(ev.action);
+            }
+          }
+          if (typeof (ev as any).response_chunk === 'string') {
+            if (!startedAssistant) {
+              process.stdout.write('Assistant: ');
+              startedAssistant = true;
+            }
+            process.stdout.write((ev as any).response_chunk);
+          }
+        } else {
+          finalState = ev.state;
+          finalResponse = ev.response || '';
         }
-      } else {
-        finalState = ev.state;
-        finalResponse = ev.response || '';
       }
-    }
 
-    // After stream ends, print step transition and ensure newline if we streamed text
-    if (finalState) {
-      if (startedAssistant) console.log();
-      console.log(
-        `→ step: ${finalState.current_step_id}${finalState.flow_state ? ` (flow: ${finalState.flow_state.flow_id})` : ''}`,
-      );
-      state = finalState;
-      // If nothing was streamed, but last action is RESPOND, print the final response
-      if (!startedAssistant && lastAction === 'RESPOND' && finalResponse && finalResponse.trim()) {
-        console.log('Assistant:', finalResponse);
+      // After stream ends, print step transition and ensure newline if we streamed text
+      if (finalState) {
+        if (startedAssistant) console.log();
+        console.log(
+          `→ step: ${finalState.current_step_id}${finalState.flow_state ? ` (flow: ${finalState.flow_state.flow_id})` : ''}`,
+        );
+        state = finalState;
+        // If nothing was streamed, but last action is RESPOND, print the final response
+        if (!startedAssistant && lastAction === 'RESPOND' && finalResponse && finalResponse.trim()) {
+          console.log('Assistant:', finalResponse);
+        }
       }
-    }
+
+      // Decide whether to chain another .stream() call client-side
+      if (!startedAssistant && (lastAction === 'MOVE' || lastAction === 'TOOL_CALL') && safety++ < 3) {
+        inputToSend = undefined; // follow-up turn with no user text
+        continue;
+      }
+      break;
+    } while (true);
   }
 }
 
@@ -110,7 +128,7 @@ async function chatNext(client: AgentClient) {
       continue;
     }
 
-    const res = await client.next(text, state, { verbose: true });
+    const res = await client.next(text, state, { verbose: true, chainMoves: true });
     state = res.state;
     console.log('Assistant:', res.response || '(no text)');
     if (state?.current_step_id)
