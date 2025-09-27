@@ -13,10 +13,10 @@ Phase 0 — Completed Foundations
 
 Phase 1 — Tools Hardening & Registry
 
-- [ ] Error taxonomy and richer results: `InvalidArgumentsError`, `FallbackError`; extend `ToolResult` with `code`, `status`, metadata (`src/tools/index.ts`).
-- [ ] Namespaced `ToolRegistry` with serialize/restore; session integration.
+- [x] Error taxonomy and richer results: `InvalidArgumentsError`, `FallbackError`; extend `ToolResult` with `code`, `status`, metadata (`src/tools/index.ts`).
+- [x] Namespaced `ToolRegistry` with serialize/restore APIs; list/get/has across namespaces.
 - [x] Argument validation guidance: missing‑arg retry in `Session.ensureValidDecision` with clearer messages.
-- [ ] Acceptance: typed errors; registry list/serialize/restore; guided retries enumerate missing keys clearly.
+- [x] Acceptance: typed errors; registry list/serialize/restore; guided retries enumerate missing keys clearly.
 
 Phase 2 — Nomos Agent Server + Client SDK
 
