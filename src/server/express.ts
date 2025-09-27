@@ -1,13 +1,13 @@
 import type { Agent } from '../core/agent';
 import type { AgentServerOptions, NextRequestBody } from './types';
 import { createAgentServer } from './core';
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 
 export function createExpressRouter(agent: Agent, opts: AgentServerOptions = {}) {
   const serverCore = createAgentServer(agent, opts);
   const router = express.Router();
 
-  router.post(serverCore.base + '/next', async (req, res) => {
+  router.post(serverCore.base + '/next', async (req: Request, res: Response) => {
     try {
       const body = (req.body || {}) as NextRequestBody;
       const out = await serverCore.handleNext(body);
@@ -17,7 +17,7 @@ export function createExpressRouter(agent: Agent, opts: AgentServerOptions = {})
     }
   });
 
-  router.post(serverCore.base + '/stream', async (req, res) => {
+  router.post(serverCore.base + '/stream', async (req: Request, res: Response) => {
     try {
       const body = (req.body || {}) as NextRequestBody;
       res.status(200);
@@ -33,4 +33,3 @@ export function createExpressRouter(agent: Agent, opts: AgentServerOptions = {})
 
   return router;
 }
-

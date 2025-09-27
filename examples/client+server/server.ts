@@ -18,7 +18,7 @@ try {
       }
     }
   }
-} catch {}
+} catch { }
 
 // Barista agent (from interactive demo)
 const llm = new OpenAILLM({ provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY });
@@ -42,10 +42,10 @@ const steps = [
   { step_id: 'finalize_order', description: 'Get order summary then finalize; change order -> take_coffee_order; cancel -> end.', available_tools: ['get_order_summary', 'finalize_order'], routes: [{ target: 'end', condition: 'Order finalized or canceled' }, { target: 'take_coffee_order', condition: 'Change order' }] },
   { step_id: 'end', description: 'Clear the cart and end.', available_tools: ['clear_cart'], routes: [] },
 ];
-const flows = [ { config: { flow_id: 'take_coffee_order', name: 'Coffee Ordering', enters: ['take_coffee_order'], exits: ['finalize_order', 'end'] }, steps: [] } ];
+const flows = [{ config: { flow_id: 'take_coffee_order', name: 'Coffee Ordering', enters: ['take_coffee_order'], exits: ['finalize_order', 'end'] }, steps: [] }];
 
 const events: any[] = [];
-const emitter: EventEmitter = { emit(evt: SessionEvent){ events.push(evt); if (events.length>200) events.shift(); } };
+const emitter: EventEmitter = { emit(evt: SessionEvent) { events.push(evt); if (events.length > 200) events.shift(); } };
 
 const agent = new Agent({ name: 'barista', steps, flows, startStepId: 'start', tools: [getAvailableCoffeeOptions, addToCart, removeItem, clearCart, getOrderSummary, finalizeOrder], llm, eventEmitter: emitter as any });
 

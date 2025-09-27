@@ -23,47 +23,47 @@ async function chatStream(client: AgentClient) {
     if (text === ':help') { console.log('Commands: :help, :reset, :exit'); continue; }
     if (text === ':reset') { state = undefined; console.log('(state cleared)'); continue; }
 
-    const whySet = new Set<string>();
-    const toolCalls: Array<{ tool_name: string; tool_args: Record<string, any> }> = [];
-    let responseBuf = '';
+    const printedWhy = new Set<string>();
+    const printedTool = new Set<string>();
     let lastAction: string | undefined;
-    let final: { response: string; state: any } | null = null;
+    let startedAssistant = false;
+    let finalState: any = undefined;
+    let finalResponse: string = '';
 
     for await (const ev of client.stream(text, state, { verbose: true })) {
       if (ev.type === 'partial') {
-        if (ev.action) lastAction = ev.action;
-        if (typeof ev.why === 'string' && ev.why.trim() && !whySet.has(ev.why)) {
-          whySet.add(ev.why);
+        // Print why/tool as they appear (deduped), before any response text
+        if (typeof ev.why === 'string' && ev.why.trim() && !printedWhy.has(ev.why)) {
+          console.log(`{why:${ev.why}}`);
+          printedWhy.add(ev.why);
         }
         if ((ev as any).tool_call) {
           const tc = (ev as any).tool_call as { tool_name: string; tool_args: Record<string, any> };
           const key = `${tc.tool_name}:${JSON.stringify(tc.tool_args || {})}`;
-          if (!toolCalls.find(t => `${t.tool_name}:${JSON.stringify(t.tool_args||{})}` === key)) {
-            toolCalls.push({ tool_name: tc.tool_name, tool_args: tc.tool_args || {} });
+          if (!printedTool.has(key)) {
+            console.log(`(tool) ${tc.tool_name} ${JSON.stringify(tc.tool_args || {})}`);
+            printedTool.add(key);
           }
         }
+        if (ev.action) lastAction = ev.action;
         if (typeof (ev as any).response_chunk === 'string') {
-          responseBuf += (ev as any).response_chunk;
+          if (!startedAssistant) { process.stdout.write('Assistant: '); startedAssistant = true; }
+          process.stdout.write((ev as any).response_chunk);
         }
       } else {
-        final = { response: ev.response, state: ev.state };
+        finalState = ev.state;
+        finalResponse = ev.response || '';
       }
     }
 
-    if (final) {
-      state = final.state;
-      // Print why/tool/step first
-      for (const w of whySet) {
-        console.log(`{why:${w}}`);
-      }
-      for (const t of toolCalls) {
-        console.log(`(tool) ${t.tool_name} ${JSON.stringify(t.tool_args)}`);
-      }
-      console.log(`→ step: ${state.current_step_id}${state.flow_state ? ` (flow: ${state.flow_state.flow_id})` : ''}`);
-      // Then print response if the last action is RESPOND
-      if (lastAction === 'RESPOND') {
-        const textOut = responseBuf && responseBuf.trim().length > 0 ? responseBuf : (final.response || '');
-        if (textOut && textOut.trim().length > 0) console.log('Assistant:', textOut);
+    // After stream ends, print step transition and ensure newline if we streamed text
+    if (finalState) {
+      if (startedAssistant) console.log();
+      console.log(`→ step: ${finalState.current_step_id}${finalState.flow_state ? ` (flow: ${finalState.flow_state.flow_id})` : ''}`);
+      state = finalState;
+      // If nothing was streamed, but last action is RESPOND, print the final response
+      if (!startedAssistant && lastAction === 'RESPOND' && finalResponse && finalResponse.trim()) {
+        console.log('Assistant:', finalResponse);
       }
     }
   }

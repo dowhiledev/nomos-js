@@ -28,27 +28,64 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
 
     async function streamOneTurn(input?: string) {
       hadAnyChunk = false;
+      // Enforce order: reasoning -> action -> tool_call -> response
+      const printedWhy = new Set<string>();
+      const pendingTools: Array<{ tool_name: string; tool_args: Record<string, any> }> = [];
+      let pendingAction: string | undefined;
+      let preambleFlushed = false;
+      let bufferedResponse = '';
+      let responseStarted = false;
+
+      function flushPreambleIfNeeded() {
+        if (preambleFlushed) return;
+        // Action after any already-emitted reasoning
+        if (pendingAction) onEvent({ type: 'partial', action: pendingAction });
+        for (const t of pendingTools) onEvent({ type: 'partial', tool_call: { tool_name: t.tool_name, tool_args: t.tool_args || {} } });
+        preambleFlushed = true;
+        if (bufferedResponse) { onEvent({ type: 'partial', response_chunk: bufferedResponse }); bufferedResponse = ''; }
+      }
+
       for await (const upd of agent.streamNext(input, lastState, !!returnTool, !!returnStep, !!verbose, constraints)) {
-        if (upd.decision && (upd.decision as any).action) {
-          lastAction = (upd.decision as any).action as string;
-          onEvent({ type: 'partial', action: lastAction });
-        }
-        if (upd.decision && Array.isArray((upd.decision as any).reasoning)) {
+        if (!responseStarted && upd.decision && Array.isArray((upd.decision as any).reasoning)) {
           for (const r of (upd.decision as any).reasoning as string[]) {
-            if (r && r.trim()) onEvent({ type: 'partial', why: r });
+            if (r && r.trim() && !printedWhy.has(r)) { printedWhy.add(r); onEvent({ type: 'partial', why: r }); }
           }
         }
-        if ((upd as any).tool_call) {
+        if (upd.decision && (upd.decision as any).action) {
+          lastAction = (upd.decision as any).action as string;
+          // Defer action until we flush the preamble
+          pendingAction = lastAction;
+        }
+        if (!responseStarted && (upd as any).tool_call) {
           const tc = (upd as any).tool_call;
-          onEvent({ type: 'partial', tool_call: { tool_name: tc.tool_name, tool_args: tc.tool_args || {} } });
+          const tool_args = (tc.tool_args ?? tc.tool_kwargs) || {};
+          const key = `${tc.tool_name}:${JSON.stringify(tool_args)}`;
+          if (!pendingTools.find(t => `${t.tool_name}:${JSON.stringify(t.tool_args||{})}` === key)) {
+            pendingTools.push({ tool_name: tc.tool_name, tool_args });
+          }
         }
         if (typeof (upd as any).response_chunk === 'string' && (upd as any).response_chunk.length > 0) {
           hadAnyChunk = true;
-          onEvent({ type: 'partial', response_chunk: (upd as any).response_chunk });
+          // First time we see response, flush preamble and stop emitting further why/tool
+          if (!responseStarted) {
+            responseStarted = true;
+            flushPreambleIfNeeded();
+          }
+          if (!preambleFlushed) {
+            bufferedResponse += (upd as any).response_chunk;
+          } else {
+            onEvent({ type: 'partial', response_chunk: (upd as any).response_chunk });
+          }
         }
         if ((upd as any).type === 'final' && (upd as any).response) {
+          // Flush preamble (action + tools) before final
+          flushPreambleIfNeeded();
           lastState = (upd as any).response.state;
           onEvent({ type: 'final', response: (upd as any).response.response || '', state: lastState });
+        }
+        // If we have buffered response and at least one reasoning line has been printed, we can flush preamble now
+        if (!preambleFlushed && (printedWhy.size > 0 || pendingAction || pendingTools.length > 0) && bufferedResponse) {
+          flushPreambleIfNeeded();
         }
       }
     }
