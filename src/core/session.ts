@@ -337,6 +337,7 @@ Action Types:
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
+    chainMoves: boolean = false,
   ): Promise<Response> {
     this.iterationCount++;
 
@@ -359,11 +360,11 @@ Action Types:
       let decision = await this.generateDecision(userInput || '', context, constraints);
       decision = await this.ensureValidDecision(decision, userInput || '', context);
 
+      // Execute decision(s)
       let finalRes: Response | null = null;
       let lastToolOutput: string | null = null;
       let safety = 0;
       while (true) {
-        // Emit decision before execution for correct event ordering
         this.emitEvent('decision', { decision: this.canonicalizeDecision(decision) });
         const exec = await this.executeDecision(
           this.normalizeDecision(decision),
@@ -374,8 +375,11 @@ Action Types:
         finalRes = exec;
         if (exec.tool_output) lastToolOutput = exec.tool_output;
 
-        if (decision.action === 'MOVE' || decision.action === 'TOOL_CALL') {
-          if (++safety >= this.maxIter) break;
+        if (
+          chainMoves &&
+          (decision.action === 'MOVE' || decision.action === 'TOOL_CALL') &&
+          safety++ < this.maxIter
+        ) {
           context = this.buildContext();
           let next = await this.generateDecision('', context, constraints);
           next = await this.ensureValidDecision(next, '', context);
@@ -640,6 +644,7 @@ Action Types:
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
+    chainMoves: boolean = false,
   ): AsyncIterable<{
     type: 'partial' | 'final';
     decision?: Decision;
@@ -647,164 +652,160 @@ Action Types:
     response_chunk?: string;
     tool_call?: { tool_name: string; tool_args: Record<string, any> };
   }> {
-    this.iterationCount++;
-    if (this.iterationCount > this.maxIter) {
-      yield {
-        type: 'final',
-        response: this.createResponse(
-          "I apologize, but I've reached the maximum number of iterations. Please start a new conversation.",
-          'END',
-        ),
-      };
-      return;
-    }
-
-    try {
-      const step = this.currentStep;
-      // Build examples and prompt as in generateDecision
-      let examplesText = '';
-      if ((step as any).examples && (step as any).examples.length > 0) {
-        try {
-          const contexts = (step as any).examples.map((e: any) => e.context as string);
-          const currentEmb = await this.embeddingModel.embedText(this.buildContext());
-          const exEmbeddings = await this.embeddingModel.embedBatch(contexts);
-          const sims: number[] = exEmbeddings.map((emb: number[]) =>
-            cosineSimilarity(currentEmb, emb),
-          );
-          const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map(
-            (ex: any, i: number) => ({ ex, sim: sims[i] }),
-          );
-          pairs.sort((a, b) => b.sim - a.sim);
-          const picked = pairs.filter((p) => p.sim >= 0.5).slice(0, 3);
-          if (picked.length > 0) {
-            examplesText += 'Examples (context -> decision):\n';
-            for (const { ex } of picked) {
-              const decisionTxt =
-                typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
-              examplesText += `- ${ex.context} -> ${decisionTxt}\n`;
-            }
-            examplesText += '\n';
-          }
-        } catch {}
-      }
-
-      const prompt = this.buildDecisionPrompt(
-        userInput || '',
-        this.buildContext(),
-        step,
-        constraints,
-        examplesText,
-      );
-      const { DecisionSchema } = await import('../models/schemas');
-      let schema = DecisionSchema as any;
-      if (constraints?.actions && constraints.actions.length > 0) {
-        schema = schema.refine((d: any) => constraints.actions!.includes(d.action), {
-          message: `action must be one of: ${constraints.actions.join(', ')}`,
-        });
-      }
-
-      // Stream structured object with partial updates
-      const { partialStream, final } = (await this.llm.streamObject(schema, {
-        prompt,
-        options: { temperature: 0.1 },
-      })) as any;
-      let lastResponseText = '';
-      let toolAnnounced = false;
-      let actionAnnounced = false;
-      let reasoningCount = 0;
-      for await (const partial of partialStream) {
-        const p = this.normalizeDecision(partial as any);
-        // Emit action once
-        if (p.action && !actionAnnounced) {
-          actionAnnounced = true;
-          yield {
-            type: 'partial',
-            decision: this.canonicalizeDecision({ action: p.action } as any),
-          };
-        }
-        // Announce tool call before execution
-        if (!toolAnnounced && (p as any).tool_call?.tool_name) {
-          toolAnnounced = true;
-          yield {
-            type: 'partial',
-            tool_call: {
-              tool_name: (p as any).tool_call.tool_name,
-              tool_args: (p as any).tool_call.tool_kwargs || {},
-            },
-          };
-        }
-        // Stream reasoning lines as they become available
-        if (Array.isArray((p as any).reasoning) && (p as any).reasoning.length > reasoningCount) {
-          reasoningCount = (p as any).reasoning.length;
-          yield {
-            type: 'partial',
-            decision: this.canonicalizeDecision({ reasoning: (p as any).reasoning } as any),
-          };
-        }
-        // Stream response chunks only for RESPOND action
-        if (p.action === 'RESPOND' && typeof (p as any).response === 'string') {
-          const txt = String((p as any).response);
-          if (txt.length > lastResponseText.length) {
-            const delta = txt.slice(lastResponseText.length);
-            lastResponseText = txt;
-            if (delta) yield { type: 'partial', response_chunk: delta };
-          }
-        }
-      }
-      // Final decision
-      let finalDecision: Decision = (await final) as any;
-      finalDecision = this.normalizeDecision(finalDecision);
-      // Validate/correct final decision before execution (fills missing tool args, etc.)
-      const validated = await this.ensureValidDecision(
-        finalDecision,
-        userInput || '',
-        this.buildContext(),
-      );
-      // If decision is TOOL_CALL and we now have concrete args after validation, surface them before execution
-      if ((validated as any).action === 'TOOL_CALL') {
-        const tn = (validated as any).tool_name ?? (validated as any).tool_call?.tool_name;
-        const ta = (validated as any).tool_args ?? (validated as any).tool_call?.tool_kwargs ?? {};
-        try {
-          if (tn) {
-            // Emit via stream by yielding a partial tool_call update
-            // Note: This yield is within an async generator
-            // @ts-ignore - yielding within method
-            yield { type: 'partial', tool_call: { tool_name: tn, tool_args: ta } };
-          }
-        } catch {}
-      }
-      // Execute after announcing tool call
-      const finalResponse = await this.executeDecision(
-        this.normalizeDecision(validated),
-        returnTool,
-        returnStep,
-        verbose,
-      );
-      yield {
-        type: 'final',
-        decision: verbose ? finalDecision : undefined,
-        response: finalResponse,
-      };
-    } catch (error) {
-      this.errorCount++;
-      if (this.errorCount >= this.maxErrors) {
+    const self = this;
+    async function* streamSingleTurn(input?: string): AsyncIterable<{
+      type: 'partial' | 'final';
+      decision?: Decision;
+      response?: Response;
+      response_chunk?: string;
+      tool_call?: { tool_name: string; tool_args: Record<string, any> };
+    }> {
+      self.iterationCount++;
+      if (self.iterationCount > self.maxIter) {
         yield {
           type: 'final',
-          response: this.createResponse(
-            "I apologize, but I've encountered too many errors. Please start a new conversation.",
+          response: self.createResponse(
+            "I apologize, but I've reached the maximum number of iterations. Please start a new conversation.",
             'END',
           ),
         };
         return;
       }
-      yield {
-        type: 'final',
-        response: this.createResponse(
-          'I apologize, but I encountered an error. Let me try again.',
-          'RESPOND',
-        ),
-      };
+
+      try {
+        const step = self.currentStep;
+        // Build examples and prompt as in generateDecision
+        let examplesText = '';
+        if ((step as any).examples && (step as any).examples.length > 0) {
+          try {
+            const contexts = (step as any).examples.map((e: any) => e.context as string);
+            const currentEmb = await self.embeddingModel.embedText(self.buildContext());
+            const exEmbeddings = await self.embeddingModel.embedBatch(contexts);
+            const sims: number[] = exEmbeddings.map((emb: number[]) =>
+              cosineSimilarity(currentEmb, emb),
+            );
+            const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map(
+              (ex: any, i: number) => ({ ex, sim: sims[i] }),
+            );
+            pairs.sort((a, b) => b.sim - a.sim);
+            const picked = pairs.filter((p) => p.sim >= 0.5).slice(0, 3);
+            if (picked.length > 0) {
+              examplesText += 'Examples (context -> decision):\n';
+              for (const { ex } of picked) {
+                const decisionTxt =
+                  typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
+                examplesText += `- ${ex.context} -> ${decisionTxt}\n`;
+              }
+              examplesText += '\n';
+            }
+          } catch {}
+        }
+
+        const prompt = self.buildDecisionPrompt(
+          input || '',
+          self.buildContext(),
+          step,
+          constraints,
+          examplesText,
+        );
+        const { DecisionSchema } = await import('../models/schemas');
+        let schema = DecisionSchema as any;
+        if (constraints?.actions && constraints.actions.length > 0) {
+          schema = schema.refine((d: any) => constraints.actions!.includes(d.action), {
+            message: `action must be one of: ${constraints.actions.join(', ')}`,
+          });
+        }
+
+        // Stream structured object with partial updates
+        const { partialStream, final } = (await self.llm.streamObject(schema, {
+          prompt,
+          options: { temperature: 0.1 },
+        })) as any;
+        let lastResponseText = '';
+        let toolAnnounced = false;
+        let actionAnnounced = false;
+        let reasoningCount = 0;
+        for await (const partial of partialStream) {
+          const p = self.normalizeDecision(partial as any);
+          if (p.action && !actionAnnounced) {
+            actionAnnounced = true;
+            yield { type: 'partial', decision: self.canonicalizeDecision({ action: p.action } as any) };
+          }
+          if (!toolAnnounced && (p as any).tool_call?.tool_name) {
+            toolAnnounced = true;
+            yield {
+              type: 'partial',
+              tool_call: {
+                tool_name: (p as any).tool_call.tool_name,
+                tool_args: (p as any).tool_call.tool_kwargs || {},
+              },
+            };
+          }
+          if (Array.isArray((p as any).reasoning) && (p as any).reasoning.length > reasoningCount) {
+            reasoningCount = (p as any).reasoning.length;
+            yield { type: 'partial', decision: self.canonicalizeDecision({ reasoning: (p as any).reasoning } as any) };
+          }
+          if (p.action === 'RESPOND' && typeof (p as any).response === 'string') {
+            const txt = String((p as any).response);
+            if (txt.length > lastResponseText.length) {
+              const delta = txt.slice(lastResponseText.length);
+              lastResponseText = txt;
+              if (delta) yield { type: 'partial', response_chunk: delta };
+            }
+          }
+        }
+        let finalDecision: Decision = (await final) as any;
+        finalDecision = self.normalizeDecision(finalDecision);
+        const validated = await self.ensureValidDecision(
+          finalDecision,
+          input || '',
+          self.buildContext(),
+        );
+        if ((validated as any).action === 'TOOL_CALL') {
+          const tn = (validated as any).tool_name ?? (validated as any).tool_call?.tool_name;
+          const ta = (validated as any).tool_args ?? (validated as any).tool_call?.tool_kwargs ?? {};
+          try {
+            if (tn) {
+              // @ts-ignore - yielding within method
+              yield { type: 'partial', tool_call: { tool_name: tn, tool_args: ta } };
+            }
+          } catch {}
+        }
+        const finalResponse = await self.executeDecision(
+          self.normalizeDecision(validated),
+          returnTool,
+          returnStep,
+          verbose,
+        );
+        yield { type: 'final', decision: verbose ? finalDecision : undefined, response: finalResponse };
+      } catch (error) {
+        self.errorCount++;
+        if (self.errorCount >= self.maxErrors) {
+          yield { type: 'final', response: self.createResponse(
+            "I apologize, but I've encountered too many errors. Please start a new conversation.", 'END') };
+          return;
+        }
+        yield { type: 'final', response: self.createResponse(
+          'I apologize, but I encountered an error. Let me try again.', 'RESPOND') };
+      }
     }
+
+    // Execute one or multiple chained turns depending on flag
+    let turns = 0;
+    let lastAction: string | undefined;
+    let hadAnyChunk = false;
+    do {
+      let sawChunk = false;
+      for await (const ev of streamSingleTurn(turns === 0 ? userInput : undefined)) {
+        if (ev.type === 'partial' && ev.response_chunk) sawChunk = true;
+        if (ev.type === 'partial' && ev.decision && (ev.decision as any).action) {
+          lastAction = (ev.decision as any).action as string;
+        }
+        yield ev;
+      }
+      hadAnyChunk = hadAnyChunk || sawChunk;
+      turns++;
+    } while (chainMoves && !hadAnyChunk && (lastAction === 'MOVE' || lastAction === 'TOOL_CALL') && turns < this.maxIter);
   }
 
   private normalizeDecision(d: Decision): Decision {

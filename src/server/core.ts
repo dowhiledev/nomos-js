@@ -6,35 +6,21 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
   const streamCT = options.streamContentType || 'application/x-ndjson';
 
   async function handleNext(reqBody: NextRequestBody) {
-    const { userInput, state, returnTool, returnStep, verbose, constraints } = reqBody || {};
-    let currentState = state;
-    let turns = 0;
-    let out = await agent.next(
+    const { userInput, state, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
+    const out = await agent.next(
       userInput,
-      currentState,
+      state,
       !!returnTool,
       !!returnStep,
       !!verbose,
       constraints,
+      !!chainMoves,
     );
-    // Auto-chain when no assistant text was produced (TOOL_CALL/MOVE follow-ups)
-    while (!out.response && turns < 3) {
-      turns++;
-      currentState = out.state;
-      out = await agent.next(
-        undefined,
-        currentState,
-        !!returnTool,
-        !!returnStep,
-        !!verbose,
-        constraints,
-      );
-    }
     return out;
   }
 
   async function handleStream(reqBody: NextRequestBody, onEvent: (e: StreamEvent) => void) {
-    const { userInput, state, returnTool, returnStep, verbose, constraints } = reqBody || {};
+    const { userInput, state, returnTool, returnStep, verbose, constraints, chainMoves } = reqBody || {};
     let lastAction: string | undefined;
     let hadAnyChunk = false;
     let lastState: any = state;
@@ -73,6 +59,7 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
         !!returnStep,
         !!verbose,
         constraints,
+        !!chainMoves,
       )) {
         if (!responseStarted && upd.decision && Array.isArray((upd.decision as any).reasoning)) {
           for (const r of (upd.decision as any).reasoning as string[]) {
@@ -135,10 +122,6 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
     }
 
     await streamOneTurn(userInput);
-    while (!hadAnyChunk && (lastAction === 'MOVE' || lastAction === 'TOOL_CALL') && turns < 3) {
-      turns++;
-      await streamOneTurn(undefined);
-    }
   }
 
   return {

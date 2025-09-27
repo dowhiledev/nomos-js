@@ -141,10 +141,11 @@ export class Agent {
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
+    chainMoves: boolean = false,
   ): Promise<Response> {
     const session = sessionData ? this.createSession(sessionData) : this.createSession();
 
-    return session.next(userInput, returnTool, returnStep, verbose, constraints);
+    return session.next(userInput, returnTool, returnStep, verbose, constraints, chainMoves);
   }
 
   // Stream decisions (partial + final)
@@ -155,13 +156,14 @@ export class Agent {
     returnStep: boolean = false,
     verbose: boolean = false,
     constraints?: DecisionConstraints,
+    chainMoves: boolean = false,
   ): AsyncIterable<{
     type: 'partial' | 'final';
     decision?: Response['decision'];
     response?: Response;
   }> {
     const session = sessionData ? this.createSession(sessionData) : this.createSession();
-    return session.streamNext(userInput, returnTool, returnStep, verbose, constraints);
+    return session.streamNext(userInput, returnTool, returnStep, verbose, constraints, chainMoves);
   }
 
   // Restore a session from adapter history + provided current step id

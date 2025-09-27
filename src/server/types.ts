@@ -7,6 +7,7 @@ export interface NextRequestBody {
   returnStep?: boolean;
   verbose?: boolean;
   constraints?: DecisionConstraints;
+  chainMoves?: boolean;
 }
 
 export type NextResponseBody = Response;

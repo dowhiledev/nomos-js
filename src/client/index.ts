@@ -22,6 +22,7 @@ export class AgentClient {
       returnStep?: boolean;
       verbose?: boolean;
       constraints?: DecisionConstraints;
+      chainMoves?: boolean;
     },
   ): Promise<Response> {
     const res = await fetch(this.baseUrl + '/next', {
@@ -43,6 +44,7 @@ export class AgentClient {
       returnStep?: boolean;
       verbose?: boolean;
       constraints?: DecisionConstraints;
+      chainMoves?: boolean;
     },
   ): AsyncIterable<StreamEvent> {
     const res = await fetch(this.baseUrl + '/stream', {
