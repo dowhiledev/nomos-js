@@ -298,6 +298,8 @@ Action Types:
       // Record user input into history for context
       if (userInput && userInput.trim().length > 0) {
         this.memory.addMessage('user', userInput);
+        const cf = this.stateMachine.currentFlowId;
+        if (cf) this.memory.addFlowEvent(cf, 'message', `user: ${userInput}`);
       }
       // Generate decision
       const context = this.buildContext();
@@ -368,6 +370,8 @@ Action Types:
 
             // Add tool result to history
             this.memory.addMessage('tool', `Tool ${toolName} result: ${toolOutput}`);
+            const cf = this.stateMachine.currentFlowId;
+            if (cf) this.memory.addFlowEvent(cf, 'tool', `Tool ${toolName} result: ${toolOutput}`);
 
             // If no explicit assistant response was provided, generate a concise summary
             if (!decision.response) {
@@ -386,6 +390,17 @@ Action Types:
         if (target) {
           this.stateMachine.currentStepId = target;
           this.memory.addStep(target);
+          const trans = this.stateMachine.consumeFlowTransition();
+          if (trans) {
+            if (trans.from && trans.from !== trans.to) {
+              this.memory.addFlowEvent(trans.from, 'flow_exit', `Exit flow ${trans.from}`);
+            }
+            if (trans.to && trans.to !== trans.from) {
+              this.memory.addFlowEvent(trans.to, 'flow_enter', `Enter flow ${trans.to}`);
+            }
+            const cf = this.stateMachine.currentFlowId;
+            if (cf) this.memory.addFlowStep(cf, target);
+          }
         }
         break;
 
@@ -397,6 +412,8 @@ Action Types:
     // Add user input to history if provided
     if (decision.response) {
       this.memory.addMessage('assistant', decision.response);
+      const cf = this.stateMachine.currentFlowId;
+      if (cf) this.memory.addFlowEvent(cf, 'message', `assistant: ${decision.response}`);
     }
 
     const result = {
