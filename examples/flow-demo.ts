@@ -29,14 +29,16 @@ async function main() {
 
   const agent = new Agent({ name: 'flow_demo', steps, startStepId: 'start', llm });
 
-  let res = await agent.next('start flow', undefined, false, false, true, { actions: ['MOVE'] });
-  console.log('Decision 1:', res.decision);
-  res = await agent.next(undefined, res.state, false, false, true, { actions: ['MOVE'] });
-  console.log('Decision 2:', res.decision);
-  res = await agent.next(undefined, res.state, false, false, true, { actions: ['MOVE'] });
-  console.log('Decision 3:', res.decision);
+  let res = await agent.next('start flow', undefined, false, false, true);
+  console.log('Decision:', res.decision);
+  let safety = 0;
+  while (res.decision && (res.decision.action === 'MOVE' || res.decision.action === 'TOOL_CALL') && safety < 5) {
+    res = await agent.next(undefined, res.state, false, false, true);
+    console.log('Decision:', res.decision);
+    safety++;
+  }
+  console.log('Final step:', res.state.current_step_id);
   console.log('State history length:', res.state.history.length);
 }
 
 main().catch(console.error);
-

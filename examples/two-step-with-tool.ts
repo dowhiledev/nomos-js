@@ -58,22 +58,34 @@ async function main() {
   console.log('Decision:', resp.decision);
   console.log('Assistant:', resp.response);
 
-  // Ask for current time; first show MOVE transition into the time step
-  resp = await agent.next('Please tell me the current time.', resp.state, true, false, true, { actions: ['MOVE'] });
+  // Ask for current time; show MOVE transition into the time step
+  resp = await agent.next('Please tell me the current time.', resp.state, true, false, true);
   console.log('Decision:', resp.decision);
   console.log('Assistant:', resp.response);
   if (resp.tool_output) console.log('Tool Output:', resp.tool_output);
+  // Auto-advance
+  let safety = 0;
+  while (resp.decision && (resp.decision.action === 'MOVE' || resp.decision.action === 'TOOL_CALL') && safety < 3) {
+    resp = await agent.next(undefined, resp.state, true, false, true);
+    console.log('Decision:', resp.decision);
+    console.log('Assistant:', resp.response);
+    if (resp.tool_output) console.log('Tool Output:', resp.tool_output);
+    safety++;
+  }
 
-  // Now in time step: enforce TOOL_CALL to demonstrate tool execution
-  resp = await agent.next('Yes, time please.', resp.state, true, false, true, { actions: ['TOOL_CALL'] });
+  // Demonstrate another user input; auto-advance will handle chaining
+  resp = await agent.next('Thanks', resp.state, true, false, true);
   console.log('Decision:', resp.decision);
   console.log('Assistant:', resp.response);
   if (resp.tool_output) console.log('Tool Output:', resp.tool_output);
-
-  // Transition to end; constrain to MOVE to show final transition
-  resp = await agent.next('Thanks', resp.state, true, false, true, { actions: ['MOVE'] });
-  console.log('Decision:', resp.decision);
-  console.log('Assistant:', resp.response);
+  safety = 0;
+  while (resp.decision && (resp.decision.action === 'MOVE' || resp.decision.action === 'TOOL_CALL') && safety < 3) {
+    resp = await agent.next(undefined, resp.state, true, false, true);
+    console.log('Decision:', resp.decision);
+    console.log('Assistant:', resp.response);
+    if (resp.tool_output) console.log('Tool Output:', resp.tool_output);
+    safety++;
+  }
 }
 
 main().catch(console.error);

@@ -166,11 +166,19 @@ async function main() {
   for (const userInput of userInputs) {
     console.log('\nUser:', userInput);
 
-    response = await agent.next(userInput, response.state);
+    response = await agent.next(userInput, response.state, true, false, true);
+    console.log('Decision:', response.decision);
     console.log('Assistant:', response.response);
+    if (response.tool_output) console.log('Tool Output:', response.tool_output);
 
-    if (response.tool_output) {
-      console.log('Tool Output:', response.tool_output);
+    // Auto-advance on MOVE or TOOL_CALL
+    let safety = 0;
+    while (response.decision && (response.decision.action === 'MOVE' || response.decision.action === 'TOOL_CALL') && safety < 3) {
+      response = await agent.next(undefined, response.state, true, false, true);
+      console.log('Decision:', response.decision);
+      console.log('Assistant:', response.response);
+      if (response.tool_output) console.log('Tool Output:', response.tool_output);
+      safety++;
     }
 
     // Check if conversation ended

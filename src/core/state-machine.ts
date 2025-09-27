@@ -63,8 +63,9 @@ export class StateMachine {
       }
       if (prevFlow) {
         const pc = this.flowConfig.get(prevFlow);
-        if (pc?.exits && pc.exits.length > 0 && !pc.exits.includes(prevStep)) {
-          throw new Error(`Cannot exit flow '${prevFlow}' from step '${prevStep}'. Allowed exits: ${pc.exits.join(', ')}`);
+        // Exits list denotes target steps that mark a valid exit
+        if (pc?.exits && pc.exits.length > 0 && !pc.exits.includes(id)) {
+          throw new Error(`Cannot exit flow '${prevFlow}' to step '${id}'. Allowed exits: ${pc.exits.join(', ')}`);
         }
       }
     }
@@ -106,5 +107,14 @@ export class StateMachine {
     const t = this._lastFlowTransition;
     this._lastFlowTransition = undefined;
     return t;
+  }
+
+  // Initialize from a previously saved state without validating flow entry/exit
+  loadFromState(stepId: string, flowId?: string) {
+    if (!this.steps.has(stepId)) throw new Error(`Step '${stepId}' not found`);
+    this._prevStepId = undefined;
+    this._currentStepId = stepId;
+    this._currentFlowId = flowId ?? (this.stepToFlow.get(stepId) || this.steps.get(stepId)?.flow_id);
+    this._lastFlowTransition = undefined;
   }
 }

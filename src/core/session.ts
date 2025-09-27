@@ -81,7 +81,10 @@ export class Session {
 
     // Initialize state machine and memory
     this.stateMachine = new StateMachine({ steps: this.steps, startStepId: this.startStepId, flows: this.flows });
-    if (config.state?.current_step_id) this.stateMachine.currentStepId = config.state.current_step_id;
+    if (config.state?.current_step_id) {
+      const flowId = (config.state as any).flow_state?.flow_id as string | undefined;
+      this.stateMachine.loadFromState(config.state.current_step_id, flowId);
+    }
     this.memory = new Memory(config.state?.history, { adapter: config.memoryAdapter, summarizeEvery: config.summarizeEvery });
     this.eventEmitter = config.eventEmitter;
     this.stateAdapter = config.stateAdapter;
@@ -331,17 +334,41 @@ Action Types:
         const cf = this.stateMachine.currentFlowId;
         if (cf) this.memory.addFlowEvent(cf, 'message', `user: ${userInput}`);
       }
-      // Generate decision
-      const context = this.buildContext();
-      const originalDecision = await this.generateDecision(userInput || '', context, constraints);
+      // Generate + auto-advance on MOVE/TOOL_CALL with null input
+      let context = this.buildContext();
+      let decision = await this.generateDecision(userInput || '', context, constraints);
+      decision = await this.ensureValidDecision(decision, userInput || '', context);
 
-      // Validate and, if needed, retry with constraints
-      const validated = await this.ensureValidDecision(originalDecision, userInput || '', context);
+      let finalRes: Response | null = null;
+      let lastToolOutput: string | null = null;
+      let safety = 0;
+      while (true) {
+        // Emit decision before execution for correct event ordering
+        this.emitEvent('decision', { decision: this.canonicalizeDecision(decision) });
+        const exec = await this.executeDecision(this.normalizeDecision(decision), returnTool, returnStep, verbose);
+        finalRes = exec;
+        if (exec.tool_output) lastToolOutput = exec.tool_output;
 
-      // Execute using normalized decision, return original when verbose
-      const result = await this.executeDecision(this.normalizeDecision(validated), returnTool, returnStep, verbose);
-      if (verbose) result.decision = this.canonicalizeDecision(validated);
-      return result;
+        if (decision.action === 'MOVE' || decision.action === 'TOOL_CALL') {
+          if (++safety >= this.maxIter) break;
+          context = this.buildContext();
+          let next = await this.generateDecision('', context, constraints);
+          next = await this.ensureValidDecision(next, '', context);
+          decision = next;
+          continue;
+        }
+        break;
+      }
+
+      if (!finalRes) return this.createResponse('No response generated', 'RESPOND');
+      if (lastToolOutput && returnTool) finalRes.tool_output = lastToolOutput;
+      if (verbose) finalRes.decision = this.canonicalizeDecision(decision);
+      if (!finalRes.response) {
+        const desc = this.currentStep.description || 'Please continue.';
+        finalRes.response = desc;
+        this.memory.addMessage('assistant', finalRes.response);
+      }
+      return finalRes;
     } catch (error) {
       this.errorCount++;
 
@@ -404,15 +431,27 @@ Action Types:
             if (cf) this.memory.addFlowEvent(cf, 'tool', `Tool ${toolName} result: ${toolOutput}`);
             this.emitEvent('tool_called', { tool_name: toolName, tool_args: toolArgs, result });
 
-            // If no explicit assistant response was provided, generate a concise summary
+            // Provide helpful, concise assistant responses for common tool results when the model omitted one
             if (!decision.response) {
-              decision.response = `Executed ${toolName}. Result: ${toolOutput}`;
+              try {
+                const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+                if (toolName === 'get_order_summary') {
+                  const lines = Array.isArray(parsed?.summary) ? parsed.summary : [];
+                  const total = parsed?.total;
+                  const summaryText = lines.length ? `\n- ${lines.join('\n- ')}` : '';
+                  decision.response = `Here is your order summary:${summaryText}${typeof total === 'number' ? `\nTotal: $${total.toFixed(2)}.` : ''} Would you like to pay by Card or Cash, or make changes?`;
+                } else if (toolName === 'finalize_order') {
+                  decision.response = parsed?.message || 'Your order has been finalized. Thank you!';
+                } else if (toolName === 'add_to_cart' || toolName === 'remove_item' || toolName === 'clear_cart') {
+                  if (parsed?.message) decision.response = parsed.message;
+                }
+              } catch {
+                // ignore parse errors; model can handle follow-up
+              }
             }
           } catch (error) {
             toolOutput = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-            if (!decision.response) {
-              decision.response = `Tried ${toolName} but encountered an error: ${toolOutput}`;
-            }
+            // Avoid noisy auto-response; model can handle error messaging on next turn
             this.emitEvent('tool_error', { tool_name: toolName, tool_args: toolArgs, error: String(error) });
           }
         }
@@ -461,7 +500,6 @@ Action Types:
     } as Response;
     // Persist memory if adapter is set
     await this.memory.persist(this.sessionId);
-    this.emitEvent('decision', { decision });
     return result;
   }
 
