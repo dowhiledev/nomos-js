@@ -35,5 +35,6 @@ export * from './utils/mermaid';
 export * from './server/types';
 export { createAgentServer } from './server/core';
 export { createHttpServer } from './server/http';
+export { startHttpServer } from './server/http';
 export { createExpressRouter } from './server/express';
 export { AgentClient } from './client';

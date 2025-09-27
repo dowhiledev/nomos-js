@@ -58,6 +58,7 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
   },

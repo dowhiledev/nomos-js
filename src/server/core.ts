@@ -7,8 +7,16 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
 
   async function handleNext(reqBody: NextRequestBody) {
     const { userInput, state, returnTool, returnStep, verbose, constraints } = reqBody || {};
-    const res = await agent.next(userInput, state, !!returnTool, !!returnStep, !!verbose, constraints);
-    return res;
+    let currentState = state;
+    let turns = 0;
+    let out = await agent.next(userInput, currentState, !!returnTool, !!returnStep, !!verbose, constraints);
+    // Auto-chain when no assistant text was produced (TOOL_CALL/MOVE follow-ups)
+    while (!out.response && turns < 3) {
+      turns++;
+      currentState = out.state;
+      out = await agent.next(undefined, currentState, !!returnTool, !!returnStep, !!verbose, constraints);
+    }
+    return out;
   }
 
   async function handleStream(reqBody: NextRequestBody, onEvent: (e: StreamEvent) => void) {
@@ -59,4 +67,3 @@ export function createAgentServer(agent: Agent, options: AgentServerOptions = {}
     handleStream,
   };
 }
-
