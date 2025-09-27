@@ -8,6 +8,7 @@ import type {
   Response,
 } from '../models/schemas';
 import type { LLMBase } from '../llms';
+import type { DecisionConstraints } from '../models/schemas';
 import type { Tool } from '../tools';
 import { Session } from './session';
 
@@ -132,13 +133,14 @@ export class Agent {
     sessionData?: State,
     returnTool: boolean = false,
     returnStep: boolean = false,
-    verbose: boolean = false
+    verbose: boolean = false,
+    constraints?: DecisionConstraints,
   ): Promise<Response> {
     const session = sessionData
       ? this.createSession(sessionData)
       : this.createSession();
 
-    return session.next(userInput, returnTool, returnStep, verbose);
+    return session.next(userInput, returnTool, returnStep, verbose, constraints);
   }
 
   // Get agent configuration

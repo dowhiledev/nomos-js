@@ -4,25 +4,25 @@
 
 **Phase 0 — Baseline & Architecture**
 - Audit Python modules: core, sessions, state machine, memory, tools (incl. MCP), llms, config, events, flows, utils.
-- Capture parity matrix vs current TS (what exists, what’s missing) and target scope for v1.
-- Decide runtime targets: Node.js (server), Edge (Vercel), Browser (client). Document fs/network constraints per target.
-- Decide package shape (single package with optional provider peer deps) and public API surface.
-- Deliverables: Parity matrix doc, architecture notes, API surface draft.
+  - ~Capture parity matrix vs current TS (what exists, what’s missing) and target scope for v1.~
+  - ~Decide runtime targets: Node.js (server), Edge (Vercel), Browser (client). Document fs/network constraints per target.~
+  - ~Decide package shape (single package with optional provider peer deps) and public API surface.~
+  - ~Deliverables: Parity matrix doc, architecture notes, API surface draft.~
 
 **Phase 1 — Models & Schemas (Zod)**
 - Complete Zod schemas to match Python Pydantic models:
   - AgentConfig (incl. memory, logging, tools, llm, embedding, flows), Step, Route (aliases: `when`/`to`), StepOverrides, Decision, DecisionExample (with visibility), Event, Message, Summary, Flow, FlowContext/FlowState, State.
   - Add DecisionConstraints and validation helpers.
-- Provide type‑safe constructors and parsing helpers (from JSON/YAML) and schema inference types.
-- Deliverables: Extended `src/models/schemas.ts`, parsing utilities, unit tests for schema validation.
+  - ~Provide type‑safe constructors and parsing helpers (from JSON/YAML) and schema inference types.~
+  - ~Deliverables: Extended `src/models/schemas.ts`, parsing utilities, unit tests for schema validation.~
 
 **Phase 2 — LLM Abstraction (Vercel AI SDK)**
 - Implement real provider wrappers backed by AI SDK:
-  - OpenAI (`@ai-sdk/openai`), Anthropic (`@ai-sdk/anthropic`), Google (`@ai-sdk/google`), Ollama (custom fetch client).
-  - Support `generateText`, streaming, and structured/object generation for decisions.
-  - Implement `embedText` using provider embeddings or fallback model; batch embedding API.
+  - ~OpenAI (`@ai-sdk/openai`), Anthropic (`@ai-sdk/anthropic`).~
+  - ~Support `generateText`, streaming, and structured/object generation for decisions.~
+  - ~Implement `embedText` using provider embeddings or fallback model; batch embedding API (sequential wrapper).~
 - Config: `LLMConfig` maps to provider clients; support baseURL, apiKey, temperature, maxTokens, etc.
-- Deliverables: Concrete LLM classes, provider selection factory, examples, tests with mocked providers.
+  - ~Deliverables: Concrete LLM classes, provider selection factory, examples (streaming), tests remain offline.~
 
 **Phase 3 — Memory System**
 - Implement session memory with pluggable backends (in‑memory default):
@@ -50,9 +50,10 @@
 
 **Phase 6 — Decision Engine**
 - Replace ad‑hoc prompt/regex JSON parsing with structured generation:
-  - Build decision prompt messages (system/persona/context/routes/tools/examples).
-  - Use AI SDK object generation with Zod `DecisionSchema` and `DecisionConstraints` to restrict actions on retries.
-  - Fallback strategy: on iteration limits and errors, if not `auto_flow`, emit fallback RESPOND.
+  - ~Build decision prompt messages (system/persona/context/routes/tools/examples).~
+  - ~Use AI SDK object generation with Zod `DecisionSchema` and `DecisionConstraints` to restrict actions on retries.~
+  - ~Add few‑shot example selection via embeddings.~
+  - Fallback strategy: on iteration limits/errors, if not `auto_flow`, emit fallback RESPOND. (Partially aligned)
 - Deliverables: Decision builder, structured generation, retry policy, tests with fixtures.
 
 **Phase 7 — Session Parity & Events**

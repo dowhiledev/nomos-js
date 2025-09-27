@@ -13,6 +13,7 @@ import type {
 } from '../models/schemas';
 import type { LLMBase } from '../llms';
 import type { Tool } from '../tools';
+import type { DecisionConstraints } from '../models/schemas';
 
 // Session configuration
 export interface SessionConfig {
@@ -114,12 +115,37 @@ export class Session {
   private async generateDecision(
     userInput: string,
     context: string,
-    constraints?: import('../models/schemas').DecisionConstraints
+    constraints?: DecisionConstraints,
   ): Promise<Decision> {
     const step = this.currentStep;
 
+    // Prepare few-shot examples (dynamic by similarity)
+    let examplesText = '';
+    if ((step as any).examples && (step as any).examples.length > 0) {
+      try {
+        const contexts = (step as any).examples.map((e: any) => e.context as string);
+        const currentEmb = await this.embeddingModel.embedText(context);
+        const exEmbeddings = await this.embeddingModel.embedBatch(contexts);
+        // cosine similarity
+        const sims: number[] = exEmbeddings.map((emb: number[]) => cosineSimilarity(currentEmb, emb));
+        const pairs: Array<{ ex: any; sim: number }> = (step as any).examples.map((ex: any, i: number) => ({ ex, sim: sims[i] }));
+        pairs.sort((a: { ex: any; sim: number }, b: { ex: any; sim: number }) => b.sim - a.sim);
+        const max = 3;
+        const threshold = 0.5;
+        const picked = pairs.filter((p: { ex: any; sim: number }) => p.sim >= threshold).slice(0, max);
+        if (picked.length > 0) {
+          examplesText += 'Examples (context -> decision):\n';
+          for (const { ex } of picked) {
+            const decisionTxt = typeof ex.decision === 'string' ? ex.decision : JSON.stringify(ex.decision);
+            examplesText += `- ${ex.context} -> ${decisionTxt}\n`;
+          }
+          examplesText += '\n';
+        }
+      } catch {}
+    }
+
     // Build prompt for decision making
-    const prompt = this.buildDecisionPrompt(userInput, context, step, constraints);
+    const prompt = this.buildDecisionPrompt(userInput, context, step, constraints, examplesText);
 
     // Build constrained schema if needed
     const { DecisionSchema } = await import('../models/schemas');
@@ -148,7 +174,8 @@ export class Session {
     userInput: string,
     context: string,
     step: Step,
-    constraints?: import('../models/schemas').DecisionConstraints,
+    constraints?: DecisionConstraints,
+    examplesText: string = '',
   ): string {
     let prompt = '';
 
@@ -189,6 +216,11 @@ export class Session {
     // Context and history
     prompt += `Context: ${context}\n\n`;
     prompt += `User Input: ${userInput}\n\n`;
+
+    // Few-shot examples
+    if (examplesText) {
+      prompt += examplesText;
+    }
 
     // Instructions
     prompt += `Based on the current step, user input, and available options, decide what to do next.
@@ -250,7 +282,8 @@ Action Types:
     userInput?: string,
     returnTool: boolean = false,
     returnStep: boolean = false,
-    verbose: boolean = false
+    verbose: boolean = false,
+    constraints?: DecisionConstraints,
   ): Promise<Response> {
     this.iterationCount++;
 
@@ -264,7 +297,7 @@ Action Types:
     try {
       // Generate decision
       const context = this.buildContext();
-      const decision = await this.generateDecision(userInput || '', context);
+      const decision = await this.generateDecision(userInput || '', context, constraints);
 
       // Execute decision
       return await this.executeDecision(decision, returnTool, returnStep, verbose);
@@ -312,6 +345,15 @@ Action Types:
     verbose: boolean
   ): Promise<Response> {
     let toolOutput: string | null = null;
+
+    // Normalize decision fields
+    if (!decision.target && (decision as any).step_id) {
+      (decision as any).target = (decision as any).step_id;
+    }
+    if (!decision.tool_name && (decision as any).tool_call?.tool_name) {
+      (decision as any).tool_name = (decision as any).tool_call.tool_name;
+      (decision as any).tool_args = (decision as any).tool_call.tool_kwargs;
+    }
 
     switch (decision.action) {
       case 'TOOL_CALL':
@@ -380,4 +422,19 @@ Action Types:
       state: this.getState(),
     };
   }
+}
+
+// Utilities
+function cosineSimilarity(a: number[], b: number[]): number {
+  const len = Math.min(a.length, b.length);
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < len; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom > 0 ? dot / denom : 0;
 }
