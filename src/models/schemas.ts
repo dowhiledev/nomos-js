@@ -5,10 +5,20 @@ export const ActionSchema = z.enum(['MOVE', 'RESPOND', 'TOOL_CALL', 'END']);
 export type Action = z.infer<typeof ActionSchema>;
 
 // Route schema for step transitions
-export const RouteSchema = z.object({
+// Accept "to" and "when" as aliases via preprocessing
+export const RouteSchema = z.preprocess((input) => {
+  const obj = input as any;
+  if (obj && typeof obj === 'object') {
+    return {
+      target: obj.target ?? obj.to,
+      condition: obj.condition ?? obj.when,
+    };
+  }
+  return input;
+}, z.object({
   target: z.string(),
   condition: z.string(),
-});
+}));
 export type Route = z.infer<typeof RouteSchema>;
 
 // Step identifier for tracking current step
@@ -33,7 +43,24 @@ export const StepOverridesSchema = z.object({
 export type StepOverrides = z.infer<typeof StepOverridesSchema>;
 
 // Main Step schema
-export const StepSchema = z.object({
+export const StepSchema = z.preprocess((input) => {
+  const obj = input as any;
+  if (obj && typeof obj === 'object') {
+    return {
+      step_id: obj.step_id ?? obj.id,
+      description: obj.description ?? obj.desc,
+      routes: obj.routes ?? obj.paths,
+      available_tools: obj.available_tools ?? obj.tools,
+      answer_model: obj.answer_model,
+      auto_flow: obj.auto_flow ?? false,
+      quick_suggestions: obj.quick_suggestions ?? false,
+      flow_id: obj.flow_id,
+      overrides: obj.overrides,
+      examples: obj.examples ?? obj.eg,
+    };
+  }
+  return input;
+}, z.object({
   step_id: z.string(),
   description: z.string(),
   routes: z.array(RouteSchema).default([]),
@@ -44,27 +71,57 @@ export const StepSchema = z.object({
   flow_id: z.string().optional(),
   overrides: StepOverridesSchema.optional(),
   examples: z.array(DecisionExampleSchema).optional(),
-});
+}));
 export type Step = z.infer<typeof StepSchema>;
 
 // Decision schema for agent actions
+// ToolCall structure (parity with Python: tool_name + tool_kwargs)
+export const ToolCallSchema = z.object({
+  tool_name: z.string(),
+  tool_kwargs: z.record(z.any()).default({}),
+});
+
+export type ToolCall = z.infer<typeof ToolCallSchema>;
+
 export const DecisionSchema = z.object({
   action: ActionSchema,
+  // MOVE → target step id (alias step_id)
   target: z.string().optional(),
+  step_id: z.string().optional(),
+  // RESPOND → string or structured object
   response: z.any().optional(),
+  suggestions: z.array(z.string()).optional(),
+  // TOOL_CALL → either tool_name/tool_args or tool_call
   tool_name: z.string().optional(),
   tool_args: z.record(z.any()).optional(),
-  reasoning: z.string().optional(),
+  tool_call: ToolCallSchema.optional(),
+  reasoning: z.union([z.string(), z.array(z.string())]).optional(),
+}).transform((d) => {
+  // Normalize step_id → target
+  if (!d.target && d.step_id) d.target = d.step_id;
+  return d;
 });
 export type Decision = z.infer<typeof DecisionSchema>;
 
 // Event types for session tracking
-export const EventSchema = z.object({
+// Event: accept either {type, content} or {type, data}
+export const EventSchema = z.preprocess((input) => {
+  const obj = input as any;
+  if (obj && typeof obj === 'object') {
+    return {
+      type: obj.type,
+      content: obj.content ?? obj.data,
+      timestamp: obj.timestamp,
+      decision: obj.decision,
+    };
+  }
+  return input;
+}, z.object({
   type: z.string(),
-  data: z.any(),
+  content: z.any(),
   timestamp: z.date().default(() => new Date()),
   decision: DecisionSchema.optional(),
-});
+}));
 export type Event = z.infer<typeof EventSchema>;
 
 // Message types for conversation
@@ -83,10 +140,14 @@ export const SummarySchema = z.object({
 export type Summary = z.infer<typeof SummarySchema>;
 
 // Flow context for managing flow state
+// Align closer to Python's FlowContext
 export const FlowContextSchema = z.object({
   flow_id: z.string(),
+  entry_step: z.string().optional(),
   current_step_id: z.string().optional(),
+  previous_context: z.array(z.union([EventSchema, SummarySchema])).optional(),
   variables: z.record(z.any()).default({}),
+  metadata: z.record(z.any()).default({}),
 });
 export type FlowContext = z.infer<typeof FlowContextSchema>;
 
@@ -94,7 +155,7 @@ export type FlowContext = z.infer<typeof FlowContextSchema>;
 export const FlowStateSchema = z.object({
   flow_id: z.string(),
   flow_context: FlowContextSchema,
-  flow_memory_context: z.array(z.union([MessageSchema, SummarySchema, StepIdentifierSchema])),
+  flow_memory_context: z.array(z.union([MessageSchema, SummarySchema, StepIdentifierSchema, EventSchema])),
 });
 export type FlowState = z.infer<typeof FlowStateSchema>;
 
@@ -102,7 +163,7 @@ export type FlowState = z.infer<typeof FlowStateSchema>;
 export const StateSchema = z.object({
   session_id: z.string(),
   current_step_id: z.string(),
-  history: z.array(z.union([MessageSchema, SummarySchema, StepIdentifierSchema])),
+  history: z.array(z.union([MessageSchema, SummarySchema, StepIdentifierSchema, EventSchema])),
   flow_state: FlowStateSchema.optional(),
 });
 export type State = z.infer<typeof StateSchema>;
@@ -117,14 +178,36 @@ export const ResponseSchema = z.object({
 export type Response = z.infer<typeof ResponseSchema>;
 
 // Flow configuration
-export const FlowConfigSchema = z.object({
+// Closer to Python's FlowConfig; keep TS variant optional fields
+export const FlowConfigSchema = z.preprocess((input) => {
+  const obj = input as any;
+  if (obj && typeof obj === 'object') {
+    return {
+      flow_id: obj.flow_id ?? obj.id,
+      name: obj.name,
+      description: obj.description ?? obj.desc,
+      steps: obj.steps, // TS variant
+      enters: obj.enters,
+      exits: obj.exits,
+      start_step_id: obj.start_step_id,
+      variables: obj.variables,
+      components: obj.components,
+    };
+  }
+  return input;
+}, z.object({
   flow_id: z.string(),
-  name: z.string(),
+  name: z.string().optional(),
   description: z.string().optional(),
-  steps: z.array(z.string()), // Step IDs
-  start_step_id: z.string(),
+  // TS simple flow config (optional)
+  steps: z.array(z.string()).optional(),
+  start_step_id: z.string().optional(),
+  // Python flow config (optional)
+  enters: z.array(z.string()).optional(),
+  exits: z.array(z.string()).optional(),
   variables: z.record(z.any()).default({}),
-});
+  components: z.record(z.record(z.any())).optional(),
+}));
 export type FlowConfig = z.infer<typeof FlowConfigSchema>;
 
 // Flow definition
@@ -148,5 +231,25 @@ export const AgentConfigSchema = z.object({
   tools: z.any().optional(), // Tool configuration
   llm: z.any().optional(), // LLM configuration
   embedding_model: z.any().optional(), // Embedding model config
-});
+  // Optional future: logging, memory configuration passthroughs
+  logging: z.any().optional(),
+  memory: z.any().optional(),
+}).strict();
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+
+// Decision constraints for structured retries
+export const DecisionConstraintsSchema = z.object({
+  actions: z.array(ActionSchema).optional(),
+  fields: z.array(z.enum([
+    'response',
+    'target',
+    'step_id',
+    'tool_name',
+    'tool_args',
+    'tool_call',
+    'suggestions',
+    'reasoning',
+  ])).optional(),
+  tool_name: z.string().optional(),
+});
+export type DecisionConstraints = z.infer<typeof DecisionConstraintsSchema>;

@@ -4,6 +4,7 @@ export { Session } from './core/session';
 
 // Model schemas and types
 export * from './models/schemas';
+export * from './models/normalize';
 
 // LLM providers
 export * from './llms';
